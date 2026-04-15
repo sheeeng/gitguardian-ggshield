@@ -1,5 +1,6 @@
 import subprocess
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -9,6 +10,7 @@ from ggshield.cmd.secret.scan.precommit import (
     check_is_merge_without_conflict,
     get_merge_branch_from_reflog,
 )
+from ggshield.core.errors import ServiceUnavailableError
 from ggshield.utils.os import cd
 from tests.repository import Repository
 from tests.unit.conftest import assert_invoke_ok, my_vcr
@@ -177,3 +179,65 @@ def test_precommit_with_unmerged_files(tmp_path, cli_fs_runner):
 
     # Verify the command executed successfully
     assert_invoke_ok(result)
+
+
+@patch("ggshield.cmd.secret.scan.precommit.SecretScanner")
+@patch("ggshield.cmd.secret.scan.precommit.check_git_dir")
+def test_precommit_server_unavailable(
+    check_dir_mock: Mock,
+    scanner_mock: Mock,
+    tmp_path,
+    cli_fs_runner,
+):
+    """
+    GIVEN a repository with staged changes
+    WHEN the server returns a 5xx error
+    THEN the command should return 0
+    AND display an error message about skipping checks
+    """
+    scanner_mock.side_effect = ServiceUnavailableError(
+        message="GitGuardian server is not responding.\nDetails: 503",
+    )
+
+    repo = Repository.create(tmp_path)
+    (tmp_path / "test.txt").write_text("content")
+    repo.add(".")
+    repo.create_commit("initial commit")
+    (tmp_path / "test.txt").write_text("modified")
+    repo.add(".")
+
+    with cd(repo.path):
+        result = cli_fs_runner.invoke(cli, ["secret", "scan", "pre-commit"])
+    assert_invoke_ok(result)
+    assert "Skipping ggshield checks" in result.output
+
+
+@patch("ggshield.cmd.secret.scan.precommit.SecretScanner")
+@patch("ggshield.cmd.secret.scan.precommit.check_git_dir")
+def test_precommit_connection_error(
+    check_dir_mock: Mock,
+    scanner_mock: Mock,
+    tmp_path,
+    cli_fs_runner,
+):
+    """
+    GIVEN a repository with staged changes
+    WHEN the server is not reachable (ConnectionError)
+    THEN the command should return 0
+    AND display an error message about skipping checks
+    """
+    scanner_mock.side_effect = ServiceUnavailableError(
+        message="Failed to connect to GitGuardian server.",
+    )
+
+    repo = Repository.create(tmp_path)
+    (tmp_path / "test.txt").write_text("content")
+    repo.add(".")
+    repo.create_commit("initial commit")
+    (tmp_path / "test.txt").write_text("modified")
+    repo.add(".")
+
+    with cd(repo.path):
+        result = cli_fs_runner.invoke(cli, ["secret", "scan", "pre-commit"])
+    assert_invoke_ok(result)
+    assert "Skipping ggshield checks" in result.output

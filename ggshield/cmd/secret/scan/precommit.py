@@ -8,7 +8,10 @@ import click
 from ggshield.cmd.secret.scan.secret_scan_common_options import (
     add_secret_scan_common_options,
 )
-from ggshield.cmd.utils.common_decorators import exception_wrapper
+from ggshield.cmd.utils.common_decorators import (
+    exception_wrapper,
+    non_blocking_server_error,
+)
 from ggshield.cmd.utils.context_obj import ContextObj
 from ggshield.cmd.utils.hooks import check_user_requested_skip
 from ggshield.core import ui
@@ -51,6 +54,7 @@ def check_is_merge_with_conflict(cwd: Path) -> bool:
 @add_secret_scan_common_options()
 @click.pass_context
 @exception_wrapper
+@non_blocking_server_error
 def precommit_cmd(
     ctx: click.Context,
     scan_all_merge_files: bool,

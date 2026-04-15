@@ -10,7 +10,7 @@ import pytest
 
 from ggshield.__main__ import cli
 from ggshield.core import ui
-from ggshield.core.errors import ExitCode
+from ggshield.core.errors import ExitCode, ServiceUnavailableError
 from ggshield.core.git_hooks.ci.commit_range import collect_commit_range_from_ci_env
 from ggshield.utils.git_shell import EMPTY_SHA
 from ggshield.utils.os import cd
@@ -192,6 +192,64 @@ def test_ci_cmd_does_not_work_if_ci_env_is_odd(
 
     # And the error message explains why
     assert "Current CI is not detected" in result.stdout
+
+
+@patch("ggshield.cmd.secret.scan.ci.scan_commit_range")
+@patch("ggshield.core.git_hooks.ci.commit_range.get_list_commit_SHA")
+@patch("ggshield.cmd.secret.scan.ci.check_git_dir")
+def test_ci_server_unavailable(
+    _: Mock,
+    get_list_mock: Mock,
+    scan_commit_range_mock: Mock,
+    cli_fs_runner: click.testing.CliRunner,
+    monkeypatch,
+):
+    """
+    GIVEN a CI environment
+    WHEN the server returns a 5xx error
+    THEN the command should return 0
+    AND display an error message about skipping checks
+    """
+    monkeypatch.setenv("CI", "1")
+    monkeypatch.setenv("GITLAB_CI", "1")
+    monkeypatch.setenv("CI_COMMIT_SHA", "abc123")
+    get_list_mock.return_value = ["a"] * 3
+    scan_commit_range_mock.side_effect = ServiceUnavailableError(
+        message="GitGuardian server is not responding.\nDetails: 503",
+    )
+
+    result = cli_fs_runner.invoke(cli, ["secret", "scan", "ci"])
+    assert_invoke_ok(result)
+    assert "Skipping ggshield checks" in result.output
+
+
+@patch("ggshield.cmd.secret.scan.ci.scan_commit_range")
+@patch("ggshield.core.git_hooks.ci.commit_range.get_list_commit_SHA")
+@patch("ggshield.cmd.secret.scan.ci.check_git_dir")
+def test_ci_connection_error(
+    _: Mock,
+    get_list_mock: Mock,
+    scan_commit_range_mock: Mock,
+    cli_fs_runner: click.testing.CliRunner,
+    monkeypatch,
+):
+    """
+    GIVEN a CI environment
+    WHEN the server is not reachable (ConnectionError)
+    THEN the command should return 0
+    AND display an error message about skipping checks
+    """
+    monkeypatch.setenv("CI", "1")
+    monkeypatch.setenv("GITLAB_CI", "1")
+    monkeypatch.setenv("CI_COMMIT_SHA", "abc123")
+    get_list_mock.return_value = ["a"] * 3
+    scan_commit_range_mock.side_effect = ServiceUnavailableError(
+        message="Failed to connect to GitGuardian server.",
+    )
+
+    result = cli_fs_runner.invoke(cli, ["secret", "scan", "ci"])
+    assert_invoke_ok(result)
+    assert "Skipping ggshield checks" in result.output
 
 
 DUMMY_REPO: Optional[tarfile.TarFile] = None
