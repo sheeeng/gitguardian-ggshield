@@ -1,6 +1,7 @@
 from unittest.mock import ANY, Mock, patch
 
 import pytest
+import requests.exceptions
 from click.testing import CliRunner
 from pygitguardian.models import Detail
 
@@ -377,6 +378,29 @@ class TestPreReceive:
         AND display an error message
         """
         # setting up repo to run the command
+        repo = create_pre_receive_repo(tmp_path)
+        old_sha = repo.get_top_sha()
+        shas = [repo.create_commit() for _ in range(3)]
+        with cd(repo.path):
+            result = cli_fs_runner.invoke(
+                cli,
+                ["-v", "secret", "scan", "pre-receive"],
+                input=f"{old_sha} {shas[-1]} origin/main\n",
+            )
+        assert_invoke_ok(result)
+        assert "GitGuardian server is not responding" in result.output
+
+    @patch(
+        "pygitguardian.client.GGClient.read_metadata",
+        side_effect=requests.exceptions.ConnectionError("Connection refused"),
+    )
+    def test_connection_error(self, _: Mock, tmp_path, cli_fs_runner: CliRunner):
+        """
+        GIVEN a repo on which the command is run
+        WHEN the server is not reachable (ConnectionError)
+        THEN it should return 0
+        AND display an error message
+        """
         repo = create_pre_receive_repo(tmp_path)
         old_sha = repo.get_top_sha()
         shas = [repo.create_commit() for _ in range(3)]

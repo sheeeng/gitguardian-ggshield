@@ -121,9 +121,9 @@ def check_client_api_key(client: GGClient, required_scopes: set[TokenScope]) -> 
     try:
         response = client.read_metadata()
     except requests.exceptions.ConnectionError as e:
-        raise UnexpectedError(
-            "Failed to connect to GitGuardian server. Check your"
-            f" instance URL settings.\nDetails: {e}."
+        raise ServiceUnavailableError(
+            message="Failed to connect to GitGuardian server. Check your"
+            f" instance URL settings.\nDetails: {e}.",
         )
 
     if response is None:
