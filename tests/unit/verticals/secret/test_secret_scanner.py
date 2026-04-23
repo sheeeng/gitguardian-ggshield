@@ -4,6 +4,7 @@ from unittest.mock import ANY, Mock, patch
 
 import click
 import pytest
+import requests
 from click import Command, Context, Group
 from pygitguardian.models import (
     APITokensResponse,
@@ -21,6 +22,7 @@ from ggshield.core.errors import (
     ExitCode,
     MissingScopesError,
     QuotaLimitReachedError,
+    ServiceUnavailableError,
     UnexpectedError,
 )
 from ggshield.core.scan import (
@@ -429,11 +431,15 @@ def test_scan_ignore_known_secrets(scan_mock: Mock, client, ignore_known_secrets
 
 
 @patch("pygitguardian.GGClient.multi_content_scan")
-def test_scan_unexpected_error(scan_mock: Mock, client):
+def test_scan_opaque_exception_raises_unexpected_error(scan_mock: Mock, client):
     """
-    GIVEN a call multi_content_scan raising an exception
+    GIVEN a call to multi_content_scan raising a generic, opaque exception
+    (e.g. an internal bug, JSON decode failure, SSL failure other than the
+    requests.exceptions.ConnectionError class, ...)
     WHEN calling scanner.scan
-    THEN an UnexpectedError is raised
+    THEN an UnexpectedError is raised — NOT ServiceUnavailableError. This
+    guarantees that --no-fail-on-server-error cannot silently skip scans on
+    failures whose nature we don't recognize.
     """
     scannable = StringScannable(url="localhost", content="known\nunknown")
 
@@ -450,6 +456,41 @@ def test_scan_unexpected_error(scan_mock: Mock, client):
         secret_config=SecretConfig(),
     )
     with pytest.raises(UnexpectedError, match="Scanning failed.*"):
+        scanner.scan([scannable], scanner_ui=Mock())
+
+
+@pytest.mark.parametrize(
+    "exception",
+    [
+        pytest.param(requests.exceptions.ConnectionError("boom"), id="ConnectionError"),
+        pytest.param(requests.exceptions.Timeout("boom"), id="Timeout"),
+    ],
+)
+@patch("pygitguardian.GGClient.multi_content_scan")
+def test_scan_connectivity_exception_raises_service_unavailable(
+    scan_mock: Mock, client, exception
+):
+    """
+    GIVEN multi_content_scan raises a known connectivity exception
+    WHEN calling scanner.scan
+    THEN a ServiceUnavailableError is raised, so git hook / CI commands can
+    honor --no-fail-on-server-error for genuine network failures.
+    """
+    scannable = StringScannable(url="localhost", content="known\nunknown")
+
+    scan_mock.side_effect = exception
+
+    scanner = SecretScanner(
+        client=client,
+        cache=Cache(),
+        scan_context=ScanContext(
+            scan_mode=ScanMode.PATH,
+            command_path="ggshield",
+        ),
+        check_api_key=False,
+        secret_config=SecretConfig(),
+    )
+    with pytest.raises(ServiceUnavailableError, match="Scanning failed.*"):
         scanner.scan([scannable], scanner_ui=Mock())
 
 

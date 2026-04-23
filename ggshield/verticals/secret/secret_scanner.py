@@ -7,6 +7,7 @@ from ast import literal_eval
 from concurrent.futures import Future
 from typing import Dict, Iterable, List, Optional, Union
 
+import requests
 from pygitguardian import GGClient
 from pygitguardian.models import Detail, MultiScanResult, TokenScope
 
@@ -15,13 +16,17 @@ from ggshield.core.cache import Cache
 from ggshield.core.client import check_client_api_key
 from ggshield.core.config.user_config import SecretConfig
 from ggshield.core.constants import MAX_WORKERS
-from ggshield.core.errors import handle_api_error
+from ggshield.core.errors import (
+    ServiceUnavailableError,
+    UnexpectedError,
+    handle_api_error,
+)
 from ggshield.core.scan import DecodeError, ScanContext, Scannable
 from ggshield.core.scan.scannable import NonSeekableFileError
 from ggshield.core.scanner_ui.scanner_ui import ScannerUI
 from ggshield.core.text_utils import pluralize
 
-from .secret_scan_collection import Error, Result, Results
+from .secret_scan_collection import Result, Results
 
 
 # GitGuardian API does not accept paths longer than this
@@ -194,7 +199,6 @@ class SecretScanner:
         self.cache.purge()
 
         results = []
-        errors = []
         for future in concurrent.futures.as_completed(chunks_for_futures):
             chunk = chunks_for_futures[future]
             scanner_ui.on_scanned(chunk)
@@ -203,13 +207,18 @@ class SecretScanner:
             if exception is None:
                 scan = future.result()
             else:
-                scan = Detail(detail=str(exception))
-                errors.append(
-                    Error(
-                        files=[(x.filename, x.filemode) for x in chunk],
-                        description=scan.detail,
-                    )
-                )
+                # Only connectivity failures are eligible for the
+                # --no-fail-on-server-error skip path. Any other exception is
+                # opaque (SSL failure, JSON decode, internal bug, ...) and must
+                # not be silently swallowed when fail-open is enabled.
+                if isinstance(
+                    exception,
+                    (requests.exceptions.ConnectionError, requests.exceptions.Timeout),
+                ):
+                    raise ServiceUnavailableError(
+                        f"Scanning failed: {exception}"
+                    ) from exception
+                raise UnexpectedError(f"Scanning failed: {exception}") from exception
 
             if not scan.success:
                 assert isinstance(scan, Detail)
@@ -228,7 +237,7 @@ class SecretScanner:
                 results.append(result)
 
         self.cache.save()
-        return Results(results=results, errors=errors)
+        return Results(results=results)
 
 
 def handle_scan_chunk_error(detail: Detail, chunk: List[Scannable]) -> None:

@@ -10,7 +10,7 @@ from ggshield.cmd.secret.scan.secret_scan_common_options import (
 )
 from ggshield.cmd.utils.common_decorators import (
     exception_wrapper,
-    non_blocking_server_error,
+    non_blocking_on_server_error,
 )
 from ggshield.cmd.utils.context_obj import ContextObj
 from ggshield.cmd.utils.hooks import check_user_requested_skip
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 @add_secret_scan_common_options()
 @click.pass_context
 @exception_wrapper
-@non_blocking_server_error
+@non_blocking_on_server_error
 def prepush_cmd(ctx: click.Context, prepush_args: List[str], **kwargs: Any) -> int:
     """
     Scan as a pre-push git hook all commits that are about to be pushed.

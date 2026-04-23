@@ -8,7 +8,11 @@ from ggshield.__main__ import cli
 from ggshield.cmd.secret.scan.secret_scan_common_options import (
     IGNORED_DEFAULT_WILDCARDS,
 )
-from ggshield.core.errors import ExitCode, ServiceUnavailableError
+from ggshield.core.errors import (
+    ExitCode,
+    QuotaLimitReachedError,
+    ServiceUnavailableError,
+)
 from ggshield.core.filter import init_exclusion_regexes
 from ggshield.core.scan import ScanContext, ScanMode
 from ggshield.utils.git_shell import EMPTY_SHA, EMPTY_TREE
@@ -449,7 +453,7 @@ class TestPrepush:
     @patch("ggshield.cmd.secret.scan.prepush.check_git_dir")
     @patch("ggshield.cmd.secret.scan.prepush.get_list_commit_SHA")
     @patch("ggshield.cmd.secret.scan.prepush.scan_commit_range")
-    def test_server_unavailable(
+    def test_server_unavailable_default_blocks(
         self,
         scan_commit_range_mock: Mock,
         get_list_mock: Mock,
@@ -458,9 +462,9 @@ class TestPrepush:
     ):
         """
         GIVEN a prepush range with commits
+        AND the default configuration (fail_on_server_error=True)
         WHEN the server returns a 5xx error
-        THEN it should return 0
-        AND display an error message about skipping checks
+        THEN the command exits with GITGUARDIAN_SERVER_UNAVAILABLE
         """
         scan_commit_range_mock.side_effect = ServiceUnavailableError(
             message="GitGuardian server is not responding.\nDetails: 503",
@@ -471,13 +475,13 @@ class TestPrepush:
             ["-v", "secret", "scan", "pre-push"],
             env={"PRE_COMMIT_FROM_REF": "a" * 40, "PRE_COMMIT_TO_REF": "b" * 40},
         )
-        assert_invoke_ok(result)
-        assert "Skipping ggshield checks" in result.output
+        assert_invoke_exited_with(result, ExitCode.GITGUARDIAN_SERVER_UNAVAILABLE)
+        assert "Skipping ggshield checks" not in result.output
 
     @patch("ggshield.cmd.secret.scan.prepush.check_git_dir")
     @patch("ggshield.cmd.secret.scan.prepush.get_list_commit_SHA")
     @patch("ggshield.cmd.secret.scan.prepush.scan_commit_range")
-    def test_connection_error(
+    def test_server_unavailable_opt_in_fail_open(
         self,
         scan_commit_range_mock: Mock,
         get_list_mock: Mock,
@@ -486,6 +490,36 @@ class TestPrepush:
     ):
         """
         GIVEN a prepush range with commits
+        AND --no-fail-on-server-error is passed
+        WHEN the server returns a 5xx error
+        THEN it should return 0
+        AND display an error message about skipping checks
+        """
+        scan_commit_range_mock.side_effect = ServiceUnavailableError(
+            message="GitGuardian server is not responding.\nDetails: 503",
+        )
+        get_list_mock.return_value = ["a"] * 3
+        result = cli_fs_runner.invoke(
+            cli,
+            ["-v", "secret", "scan", "pre-push", "--no-fail-on-server-error"],
+            env={"PRE_COMMIT_FROM_REF": "a" * 40, "PRE_COMMIT_TO_REF": "b" * 40},
+        )
+        assert_invoke_ok(result)
+        assert "Skipping ggshield checks" in result.output
+
+    @patch("ggshield.cmd.secret.scan.prepush.check_git_dir")
+    @patch("ggshield.cmd.secret.scan.prepush.get_list_commit_SHA")
+    @patch("ggshield.cmd.secret.scan.prepush.scan_commit_range")
+    def test_connection_error_opt_in_fail_open(
+        self,
+        scan_commit_range_mock: Mock,
+        get_list_mock: Mock,
+        check_dir_mock: Mock,
+        cli_fs_runner: CliRunner,
+    ):
+        """
+        GIVEN a prepush range with commits
+        AND GITGUARDIAN_FAIL_ON_SERVER_ERROR=false
         WHEN the server is not reachable (ConnectionError)
         THEN it should return 0
         AND display an error message about skipping checks
@@ -497,7 +531,35 @@ class TestPrepush:
         result = cli_fs_runner.invoke(
             cli,
             ["-v", "secret", "scan", "pre-push"],
-            env={"PRE_COMMIT_FROM_REF": "a" * 40, "PRE_COMMIT_TO_REF": "b" * 40},
+            env={
+                "PRE_COMMIT_FROM_REF": "a" * 40,
+                "PRE_COMMIT_TO_REF": "b" * 40,
+                "GITGUARDIAN_FAIL_ON_SERVER_ERROR": "false",
+            },
         )
         assert_invoke_ok(result)
         assert "Skipping ggshield checks" in result.output
+
+    @patch("ggshield.cmd.secret.scan.prepush.check_git_dir")
+    @patch("ggshield.cmd.secret.scan.prepush.get_list_commit_SHA")
+    @patch("ggshield.cmd.secret.scan.prepush.scan_commit_range")
+    def test_quota_error_still_fails_with_flag(
+        self,
+        scan_commit_range_mock: Mock,
+        get_list_mock: Mock,
+        check_dir_mock: Mock,
+        cli_fs_runner: CliRunner,
+    ):
+        """
+        GIVEN --no-fail-on-server-error is passed
+        WHEN the server returns a non-5xx error (e.g. quota reached)
+        THEN the command still fails
+        """
+        scan_commit_range_mock.side_effect = QuotaLimitReachedError()
+        get_list_mock.return_value = ["a"] * 3
+        result = cli_fs_runner.invoke(
+            cli,
+            ["-v", "secret", "scan", "pre-push", "--no-fail-on-server-error"],
+            env={"PRE_COMMIT_FROM_REF": "a" * 40, "PRE_COMMIT_TO_REF": "b" * 40},
+        )
+        assert_invoke_exited_with(result, ExitCode.UNEXPECTED_ERROR)

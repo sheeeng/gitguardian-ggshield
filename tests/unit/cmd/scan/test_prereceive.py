@@ -370,14 +370,14 @@ class TestPreReceive:
         "pygitguardian.client.GGClient.read_metadata",
         return_value=Detail("Service is unavailable", 503),
     )
-    def test_server_unavailable(self, _: Mock, tmp_path, cli_fs_runner: CliRunner):
+    def test_server_unavailable_default_blocks(
+        self, _: Mock, tmp_path, cli_fs_runner: CliRunner
+    ):
         """
-        GIVEN a repo on which the command is ran
+        GIVEN the default configuration (fail_on_server_error=True)
         WHEN the server is not responding (503)
-        THEN it should return 0
-        AND display an error message
+        THEN the command exits with GITGUARDIAN_SERVER_UNAVAILABLE
         """
-        # setting up repo to run the command
         repo = create_pre_receive_repo(tmp_path)
         old_sha = repo.get_top_sha()
         shas = [repo.create_commit() for _ in range(3)]
@@ -387,19 +387,47 @@ class TestPreReceive:
                 ["-v", "secret", "scan", "pre-receive"],
                 input=f"{old_sha} {shas[-1]} origin/main\n",
             )
+        assert_invoke_exited_with(result, ExitCode.GITGUARDIAN_SERVER_UNAVAILABLE)
+        assert "GitGuardian server is not responding" in result.output
+        assert "Skipping checks" not in result.output
+
+    @patch(
+        "pygitguardian.client.GGClient.read_metadata",
+        return_value=Detail("Service is unavailable", 503),
+    )
+    def test_server_unavailable_opt_in_fail_open(
+        self, _: Mock, tmp_path, cli_fs_runner: CliRunner
+    ):
+        """
+        GIVEN --no-fail-on-server-error is set via env var
+        WHEN the server is not responding (503)
+        THEN it should return 0 and display an error about skipping checks
+        """
+        repo = create_pre_receive_repo(tmp_path)
+        old_sha = repo.get_top_sha()
+        shas = [repo.create_commit() for _ in range(3)]
+        with cd(repo.path):
+            result = cli_fs_runner.invoke(
+                cli,
+                ["-v", "secret", "scan", "pre-receive"],
+                input=f"{old_sha} {shas[-1]} origin/main\n",
+                env={"GITGUARDIAN_FAIL_ON_SERVER_ERROR": "false"},
+            )
         assert_invoke_ok(result)
         assert "GitGuardian server is not responding" in result.output
+        assert "Skipping checks" in result.output
 
     @patch(
         "pygitguardian.client.GGClient.read_metadata",
         side_effect=requests.exceptions.ConnectionError("Connection refused"),
     )
-    def test_connection_error(self, _: Mock, tmp_path, cli_fs_runner: CliRunner):
+    def test_connection_error_default_blocks(
+        self, _: Mock, tmp_path, cli_fs_runner: CliRunner
+    ):
         """
-        GIVEN a repo on which the command is run
+        GIVEN the default configuration (fail_on_server_error=True)
         WHEN the server is not reachable (ConnectionError)
-        THEN it should return 0
-        AND display an error message
+        THEN the command exits with GITGUARDIAN_SERVER_UNAVAILABLE
         """
         repo = create_pre_receive_repo(tmp_path)
         old_sha = repo.get_top_sha()
@@ -410,5 +438,32 @@ class TestPreReceive:
                 ["-v", "secret", "scan", "pre-receive"],
                 input=f"{old_sha} {shas[-1]} origin/main\n",
             )
+        assert_invoke_exited_with(result, ExitCode.GITGUARDIAN_SERVER_UNAVAILABLE)
+        assert "GitGuardian server is not responding" in result.output
+        assert "Skipping checks" not in result.output
+
+    @patch(
+        "pygitguardian.client.GGClient.read_metadata",
+        side_effect=requests.exceptions.ConnectionError("Connection refused"),
+    )
+    def test_connection_error_opt_in_fail_open(
+        self, _: Mock, tmp_path, cli_fs_runner: CliRunner
+    ):
+        """
+        GIVEN --no-fail-on-server-error is set via env var
+        WHEN the server is not reachable (ConnectionError)
+        THEN it should return 0 and display an error about skipping checks
+        """
+        repo = create_pre_receive_repo(tmp_path)
+        old_sha = repo.get_top_sha()
+        shas = [repo.create_commit() for _ in range(3)]
+        with cd(repo.path):
+            result = cli_fs_runner.invoke(
+                cli,
+                ["-v", "secret", "scan", "pre-receive"],
+                input=f"{old_sha} {shas[-1]} origin/main\n",
+                env={"GITGUARDIAN_FAIL_ON_SERVER_ERROR": "false"},
+            )
         assert_invoke_ok(result)
         assert "GitGuardian server is not responding" in result.output
+        assert "Skipping checks" in result.output
