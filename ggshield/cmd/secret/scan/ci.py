@@ -9,7 +9,10 @@ from ggshield.cmd.secret.scan.secret_scan_common_options import (
     add_secret_scan_common_options,
     create_output_handler,
 )
-from ggshield.cmd.utils.common_decorators import exception_wrapper
+from ggshield.cmd.utils.common_decorators import (
+    exception_wrapper,
+    non_blocking_on_server_error,
+)
 from ggshield.cmd.utils.context_obj import ContextObj
 from ggshield.core import ui
 from ggshield.core.cache import ReadOnlyCache
@@ -24,6 +27,7 @@ from ggshield.verticals.secret.repo import scan_commit_range
 @add_secret_scan_common_options()
 @click.pass_context
 @exception_wrapper
+@non_blocking_on_server_error
 def ci_cmd(ctx: click.Context, **kwargs: Any) -> int:
     """
     Scan the set of pushed commits that triggered the CI pipeline.

@@ -12,6 +12,7 @@ from ggshield.cmd.secret.scan.secret_scan_common_options import (
     add_secret_scan_common_options,
     create_output_handler,
 )
+from ggshield.cmd.utils.common_decorators import fail_on_server_error_option
 from ggshield.cmd.utils.context_obj import ContextObj
 from ggshield.core import ui
 from ggshield.core.cache import ReadOnlyCache
@@ -79,6 +80,7 @@ def _execute_prereceive(
     hidden=True,
 )
 @add_secret_scan_common_options()
+@fail_on_server_error_option
 @click.pass_context
 def prereceive_cmd(
     ctx: click.Context, web: bool, prereceive_args: List[str], **kwargs: Any
@@ -142,6 +144,9 @@ def prereceive_cmd(
         process.kill()
         return 0
     if process.exitcode == ExitCode.GITGUARDIAN_SERVER_UNAVAILABLE:
+        if config.user_config.secret.fail_on_server_error:
+            ui.display_error("\nGitGuardian server is not responding.")
+            return ExitCode.GITGUARDIAN_SERVER_UNAVAILABLE
         ui.display_error("\nGitGuardian server is not responding. Skipping checks.")
         return 0
 

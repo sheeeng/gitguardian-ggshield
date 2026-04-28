@@ -49,12 +49,14 @@ def test_check_client_api_key_network_error():
     """
     GIVEN a client with a wrong instance URL
     WHEN check_client_api_key() is called
-    THEN it raises an UnexpectedError
+    THEN it raises a ServiceUnavailableError
     """
-    client_mock = Mock()
-    client_mock.health_check = Mock(side_effect=requests.exceptions.ConnectionError)
-    client_mock.read_metadata = Mock(return_value=Detail("Not found", 404))
-    with pytest.raises(UnexpectedError):
+    client_mock = Mock(spec=GGClient)
+    client_mock.base_uri = "http://localhost"
+    client_mock.read_metadata = Mock(
+        side_effect=requests.exceptions.ConnectionError("Connection refused")
+    )
+    with pytest.raises(ServiceUnavailableError):
         check_client_api_key(client_mock, set())
 
 

@@ -46,6 +46,10 @@ class SecretConfig(FilteredConfig):
     all_secrets: bool = False
     prereceive_remediation_message: str = ""
     source_uuid: Optional[UUID] = None
+    # When False, pre-commit / pre-push / pre-receive / ci hooks exit 0 instead
+    # of blocking git operations when the GitGuardian server is unreachable or
+    # returns a 5xx. Defaults to True so upgrades keep blocking behavior.
+    fail_on_server_error: bool = True
 
     def add_ignored_match(self, secret: IgnoredMatch) -> None:
         """
@@ -75,6 +79,7 @@ class SecretConfig(FilteredConfig):
                 "source_uuid": (
                     str(self.source_uuid) if self.source_uuid is not None else None
                 ),
+                "fail_on_server_error": self.fail_on_server_error,
             }
         )
 
