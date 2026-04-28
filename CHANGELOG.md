@@ -1,5 +1,39 @@
 # Changelog
 
+<a id='changelog-1.50.0'></a>
+
+## 1.50.0 — 2026-04-28
+
+### Added
+
+- ggshield is now available as a MSI package.
+
+- Add sigstore signature verification for plugin wheels, enforcing identity-based trust via OIDC. Install and update operations are strict by default, while `--allow-unsigned` persists an explicit trust exception for the exact wheel hash so explicitly accepted unsigned plugins can still load at runtime.
+
+- API tokens are now stored in the OS credential store (macOS Keychain, Windows Credential Locker, Linux Secret Service) via the `keyring` library instead of cleartext in `auth_config.yaml`. Existing cleartext tokens are migrated automatically the next time the configuration is saved. If no OS credential store is available or `GGSHIELD_NO_KEYRING=1`, file-based storage is used as a fall-back.
+
+- Added a new `secret.fail_on_server_error` configuration option (default `True`), available as the `--fail-on-server-error/--no-fail-on-server-error` flag or `GITGUARDIAN_FAIL_ON_SERVER_ERROR` environment variable. When set to `False`, `secret scan pre-commit`, `secret scan pre-push`, `secret scan pre-receive`, and `secret scan ci` exit with code `0` and display a warning instead of blocking the git operation when the GitGuardian server is unreachable or returns a 5xx response. The default preserves the previous blocking behavior.
+
+- New `ggshield ai discover` command.
+
+- The AI hooks now also log/block MCP activity
+
+### Changed
+
+- **Breaking**: `secret scan pre-receive` no longer fail-opens by default when the GitGuardian server returns a 5xx response. Previously the push was allowed through with a warning; now it is blocked, matching the other git hooks. Set `secret.fail_on_server_error` to `False` (or pass `--no-fail-on-server-error`) to restore the previous fail-open behavior.
+
+### Fixed
+
+- Forward `signature_mode` through GitHub release and GitHub artifact download paths, ensuring signature verification is applied consistently across all install sources.
+
+- Scans of large repositories no longer fail on a single transient network glitch. ggshield now retries connection errors (e.g. `ConnectionResetError`) and 502/503/504 responses with bounded exponential backoff.
+
+- Global Copilot hooks are configured correctly in `~/.copilot`.
+
+### Security
+
+- Pin the default package index in `pyproject.toml` to public PyPI and add a rolling `exclude-newer = "3 days"` constraint, so the resolved `uv.lock` is reproducible for external contributors/CI and newly-published (potentially malicious) releases get a short quarantine window before they can land in the lock.
+
 <a id='changelog-1.49.0'></a>
 
 ## 1.49.0 — 2026-03-31
