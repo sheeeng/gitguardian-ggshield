@@ -7,7 +7,7 @@ from pygitguardian.models import AIDiscovery, MCPActivityRequest
 
 from ggshield.core.dirs import get_user_home_dir
 
-from ..models import EventType, HookPayload, HookResult
+from ..models import Agent, EventType, HookPayload, HookResult, MCPConfiguration
 from .claude_code import Claude
 
 
@@ -65,6 +65,9 @@ class Copilot(Claude):
                 path = Path(data["folder"].removeprefix("file://"))
                 if path.is_dir():
                     yield path.resolve()
+
+    def _get_user_mcp_configurations(self) -> Iterator[MCPConfiguration]:
+        yield from Agent._get_user_mcp_configurations(self)
 
     def parse_mcp_activity(
         self, payload: HookPayload, ai_config: AIDiscovery
