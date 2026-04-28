@@ -39,7 +39,7 @@ dependencies = [
     "marshmallow-dataclass~=8.5.8",
     "oauthlib~=3.2.1",
     "packaging>=22.0",
-    "pygitguardian @ git+https://github.com/GitGuardian/py-gitguardian.git@015c125",
+    "pygitguardian~=1.30.0",
     "pyjwt~=2.6.0",
     "python-dotenv~=0.21.0",
     "pyyaml~=6.0.1",
@@ -65,9 +65,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.version]
 path = "ggshield/__init__.py"
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.uv]
 # Exclude packages released in the last 3 days to avoid pulling a freshly
