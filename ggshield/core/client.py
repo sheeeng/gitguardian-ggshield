@@ -102,9 +102,22 @@ def create_session(allow_self_signed: bool = False) -> Session:
         )
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         session.verify = False
+    # Retry on transient connection errors (e.g. ConnectionResetError when a
+    # load balancer drops a long-lived connection during a large scan) and on
+    # transient 5xx responses. POST is included because our scan endpoints are
+    # POST-based.
+    retries = urllib3.Retry(
+        total=5,
+        backoff_factor=0.2,
+        status_forcelist=[502, 503, 504],
+        allowed_methods=frozenset(
+            {"HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"}
+        ),
+    )
     # Mount HTTPAdapter with larger pool sizes for better concurrency
     adapter = HTTPAdapter(
         pool_maxsize=100,  # default 10
+        max_retries=retries,
     )
     session.mount("http://", adapter)
     session.mount("https://", adapter)

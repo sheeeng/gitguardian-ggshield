@@ -259,6 +259,24 @@ def test_create_session_pool_configuration():
     assert getattr(adapter, "_pool_maxsize", None) == 100
 
 
+def test_create_session_retry_configuration():
+    """
+    GIVEN create_session is called
+    WHEN the session is created
+    THEN the HTTPAdapter retries transient connection errors and 5xx responses,
+    including for POST requests used by scan endpoints
+    """
+    session = create_session()
+
+    adapter = session.get_adapter("https://example.com")
+    retries = adapter.max_retries
+
+    assert retries.total == 5
+    assert retries.backoff_factor == 0.2
+    assert set(retries.status_forcelist) == {502, 503, 504}
+    assert "POST" in retries.allowed_methods
+
+
 @pytest.mark.parametrize("allow_self_signed", [True, False])
 def test_create_session_with_self_signed_option(allow_self_signed: bool):
     """
