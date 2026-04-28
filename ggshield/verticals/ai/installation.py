@@ -37,7 +37,7 @@ def install_hooks(
         raise ValueError(f"Unsupported agent: {name}")
 
     base_dir = get_user_home_dir() if mode == "global" else Path(".")
-    settings_path = base_dir / agent.settings_path
+    settings_path = base_dir / agent.settings_path(mode)
 
     command = "ggshield secret scan ai-hook"
 

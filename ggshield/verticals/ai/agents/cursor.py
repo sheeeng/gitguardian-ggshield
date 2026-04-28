@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Literal, Optional
 
 import click
 from pygitguardian.models import (
@@ -52,8 +52,7 @@ class Cursor(Agent):
         # We don't use the return 2 convention to make sure our JSON output is read.
         return 0
 
-    @property
-    def settings_path(self) -> Path:
+    def settings_path(self, mode: Literal["local", "global"]) -> Path:
         return Path(".cursor") / "hooks.json"
 
     @property

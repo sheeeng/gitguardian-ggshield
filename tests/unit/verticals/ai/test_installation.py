@@ -200,7 +200,11 @@ class TestFlavorSettingsProperties:
     """Unit tests for settings_path, settings_template, and settings_locate on each flavor."""
 
     def test_claude_settings_path(self):
-        assert Claude().settings_path == Path(".claude") / "settings.json"
+        assert (
+            Claude().settings_path("global")
+            == Claude().settings_path("local")
+            == Path(".claude") / "settings.json"
+        )
 
     def test_claude_settings_template(self):
         assert isinstance(Claude().settings_template, dict)
@@ -250,7 +254,11 @@ class TestFlavorSettingsProperties:
         assert claude.settings_locate(candidates, template) is None
 
     def test_cursor_settings_path(self):
-        assert Cursor().settings_path == Path(".cursor") / "hooks.json"
+        assert (
+            Cursor().settings_path("global")
+            == Cursor().settings_path("local")
+            == Path(".cursor") / "hooks.json"
+        )
 
     def test_cursor_settings_template(self):
         assert isinstance(Cursor().settings_template, dict)
@@ -279,7 +287,13 @@ class TestFlavorSettingsProperties:
         assert cursor.settings_locate(candidates, template) is None
 
     def test_copilot_settings_path(self):
-        assert Copilot().settings_path == Path(".github") / "hooks" / "hooks.json"
+        assert (
+            Copilot().settings_path("local") == Path(".github") / "hooks" / "hooks.json"
+        )
+        assert (
+            Copilot().settings_path("global")
+            == Path(".copilot") / "hooks" / "hooks.json"
+        )
 
 
 class TestInstallHooks:
@@ -325,7 +339,7 @@ class TestInstallHooks:
         code = install_hooks("copilot", mode="global")
         assert code == 0
 
-        settings_path = tmp_path / ".github" / "hooks" / "hooks.json"
+        settings_path = tmp_path / ".copilot" / "hooks" / "hooks.json"
         assert settings_path.exists()
 
     def test_install_unsupported_agent_raises(self):

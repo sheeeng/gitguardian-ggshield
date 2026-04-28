@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Iterator, Tuple
+from typing import Iterator, Literal, Tuple
 
 import click
 from pygitguardian.models import AIDiscovery, MCPActivityRequest
@@ -50,9 +50,10 @@ class Copilot(Claude):
         click.echo(json.dumps(response))
         return 0
 
-    @property
-    def settings_path(self) -> Path:
-        return Path(".github") / "hooks" / "hooks.json"
+    def settings_path(self, mode: Literal["local", "global"]) -> Path:
+        return (
+            Path(".github" if mode == "local" else ".copilot") / "hooks" / "hooks.json"
+        )
 
     def project_mcp_file(self, directory: Path) -> Path:
         return directory / ".vscode" / "mcp.json"

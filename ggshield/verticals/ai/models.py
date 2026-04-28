@@ -4,7 +4,7 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pygitguardian.models import (
     AIDiscovery,
@@ -119,9 +119,8 @@ class Agent(ABC):
 
     # Settings
 
-    @property
     @abstractmethod
-    def settings_path(self) -> Path:
+    def settings_path(self, mode: Literal["local", "global"]) -> Path:
         """Path to the settings file for this AI coding tool."""
 
     @property
