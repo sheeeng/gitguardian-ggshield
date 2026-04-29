@@ -178,13 +178,113 @@ step_build() {
         extra_args="--strip"
     fi
 
-    pyinstaller ggshield/__main__.py --name ggshield --exclude-module pkg_resources --noupx $extra_args
+    # sigstore loads its TUF bootstrap roots with
+    # importlib.resources.files("sigstore._store"). PyInstaller does not see
+    # that package/data reference through static analysis, so collect the data
+    # files and force the resource package itself in as a hidden import.
+    # When adding a similar dependency, append it here AND extend
+    # smoke_check_bundle() with a structural assertion.
+    local collect_args=(
+        --collect-data sigstore
+        --hidden-import sigstore._store
+    )
+
+    pyinstaller ggshield/__main__.py --name ggshield --exclude-module pkg_resources --noupx \
+        "${collect_args[@]}" $extra_args
 
     if [ "$HUMAN_OS" != Windows ] ; then
         # Libraries do not need to be executable
         find "$PYINSTALLER_OUTPUT_DIR" \( -name "*.so.*" -o -name "*.so" -o -name "*.dylib" \) \
             -exec chmod -x '{}' ';'
     fi
+
+    smoke_check_bundle
+}
+
+# Sanity-check the freshly built bundle. Catches "PyInstaller missed a
+# dynamic import / data file" regressions before they ship to users.
+#
+# Two layers:
+#   1. Run a small set of `ggshield --help` invocations. Any import failure in
+#      the main CLI/plugin-signature path will surface here as a non-zero exit /
+#      ModuleNotFoundError.
+#   2. Structurally assert that known package-data files are present in the
+#      bundle. PyInstaller does not raise when it silently drops data files,
+#      so a `--help` run can succeed while a runtime code path
+#      (e.g. sigstore's Verifier.production() loading the TUF roots) fails.
+smoke_check_bundle() {
+    info "Smoke-checking bundle"
+    local bin="$PYINSTALLER_OUTPUT_DIR/ggshield$EXE_EXT"
+    if ! [ -x "$bin" ] ; then
+        die "Bundle smoke check: '$bin' not found or not executable"
+    fi
+
+    # Layer 1: import smoketest via a minimal set of commands. Keep this list
+    # small: `ggshield --help` exercises the main CLI import graph, while the
+    # plugin commands exercise the sigstore/plugin-signature import path this
+    # check was introduced for.
+    #
+    # Run in an isolated config/data/cache directory and disable keyring so the
+    # smoke test never touches a developer's or CI runner's credential store.
+    local smoke_env_dir
+    smoke_env_dir=$(mktemp -d)
+    mkdir -p "$smoke_env_dir/home"
+    local smoke_env_dir_for_python="$smoke_env_dir"
+    if [ "$HUMAN_OS" = Windows ] ; then
+        smoke_env_dir_for_python=$(cygpath -w "$smoke_env_dir")
+    fi
+    local smoke_env=(
+        "HOME=$smoke_env_dir_for_python/home"
+        "XDG_CONFIG_HOME=$smoke_env_dir_for_python/xdg-config"
+        "XDG_DATA_HOME=$smoke_env_dir_for_python/xdg-data"
+        "XDG_CACHE_HOME=$smoke_env_dir_for_python/xdg-cache"
+        "GG_USER_HOME_DIR=$smoke_env_dir_for_python/home"
+        "GG_CONFIG_DIR=$smoke_env_dir_for_python/config"
+        "GG_DATA_DIR=$smoke_env_dir_for_python/data"
+        "GG_CACHE_DIR=$smoke_env_dir_for_python/cache"
+        "GGSHIELD_NO_KEYRING=1"
+        "GG_PLAINTEXT_OUTPUT=1"
+    )
+    local smoke_cmds=(
+        "--version"
+        "--help"
+        "plugin --help"
+        "plugin install --help"
+    )
+    local cmd
+    local -a args
+    for cmd in "${smoke_cmds[@]}" ; do
+        read -r -a args <<< "$cmd"
+        if ! env "${smoke_env[@]}" "$bin" "${args[@]}" > /dev/null 2>&1 ; then
+            err "----- Bundle smoke check FAILED for: ggshield $cmd -----"
+            env "${smoke_env[@]}" "$bin" "${args[@]}" >&2 || true
+            rm -rf "$smoke_env_dir"
+            die "Bundle is broken: 'ggshield $cmd' exited non-zero. \
+Likely a PyInstaller bundling gap — a module or data file referenced via a \
+dynamic import is missing from the bundle. Add a matching collect/hidden-import \
+argument in step_build and re-run."
+        fi
+    done
+    rm -rf "$smoke_env_dir"
+
+    # Layer 2: structural assertions for known package-data files. Each
+    # entry below was added because we caught (or want to prevent) a
+    # silent-drop bug. Append, don't replace.
+    local required_paths=(
+        # sigstore TUF bootstrap roots — missing these breaks Verifier.production()
+        "_internal/sigstore/_store/prod/root.json"
+        "_internal/sigstore/_store/prod/trusted_root.json"
+    )
+    local rel
+    for rel in "${required_paths[@]}" ; do
+        if ! [ -e "$PYINSTALLER_OUTPUT_DIR/$rel" ] ; then
+            die "Bundle smoke check: required file missing: $rel \
+(PyInstaller did not bundle it — verify the matching collect/hidden-import \
+argument is in step_build)"
+        fi
+    done
+
+    info "Bundle smoke check OK"
 }
 
 step_copy_files() {
