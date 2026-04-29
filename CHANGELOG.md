@@ -1,5 +1,13 @@
 # Changelog
 
+<a id='changelog-1.50.1'></a>
+
+## 1.50.1 — 2026-04-29
+
+### Fixed
+
+- Fixed plugin signature verification in PyInstaller-based packages by bundling sigstore's embedded TUF trust roots.
+
 <a id='changelog-1.50.0'></a>
 
 ## 1.50.0 — 2026-04-28
