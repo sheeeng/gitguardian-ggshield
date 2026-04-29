@@ -9,4 +9,4 @@ from ggshield.cmd.utils.common_options import add_common_options
 @click.group(commands={"discover": discover_cmd})
 @add_common_options()
 def ai_group(**kwargs: Any) -> None:
-    """Commands to work with MCP (Model Context Protocol) servers."""
+    """Commands to work with AI assistants."""

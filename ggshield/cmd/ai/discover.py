@@ -42,11 +42,11 @@ def discover_cmd(
     """
     Discover MCP servers and their configuration.
 
-    Parses MCP configuration files from supported assistants
+    Parses configuration files from supported assistants.
 
     Examples:
-      ggshield mcp discover
-      ggshield mcp discover --json
+      ggshield ai discover
+      ggshield ai discover --json
     """
 
     config = discover_ai_configuration()
