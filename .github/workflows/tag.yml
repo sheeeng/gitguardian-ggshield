@@ -83,7 +83,8 @@ jobs:
             packages/ggshield-*.rpm \
             packages/ggshield-*.zip \
             packages/ggshield.*.nupkg \
-            packages/ggshield-*.gz
+            packages/ggshield-*.gz \
+            packages/ggshield-*.msi
 
   update_vscode_extension:
     needs: release
