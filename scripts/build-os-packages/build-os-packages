@@ -269,11 +269,12 @@ argument in step_build and re-run."
 
     # Layer 2: structural assertions for known package-data files. Each
     # entry below was added because we caught (or want to prevent) a
-    # silent-drop bug. Append, don't replace.
+    # silent-drop bug. Keep paths in sync with dependency package-data layouts.
     local required_paths=(
-        # sigstore TUF bootstrap roots — missing these breaks Verifier.production()
-        "_internal/sigstore/_store/prod/root.json"
-        "_internal/sigstore/_store/prod/trusted_root.json"
+        # sigstore TUF bootstrap roots/config — missing these breaks Verifier.production()
+        "_internal/sigstore/_store/https%3A%2F%2Ftuf-repo-cdn.sigstore.dev/root.json"
+        "_internal/sigstore/_store/https%3A%2F%2Ftuf-repo-cdn.sigstore.dev/trusted_root.json"
+        "_internal/sigstore/_store/https%3A%2F%2Ftuf-repo-cdn.sigstore.dev/signing_config.v0.2.json"
     )
     local rel
     for rel in "${required_paths[@]}" ; do
