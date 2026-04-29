@@ -1,4 +1,5 @@
 import logging
+import os
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -149,6 +150,13 @@ class AuthConfig(FromDictMixin, ToDictMixin):
 
         If the active token store is a keyring backend, tokens marked with the
         keyring sentinel are hydrated from the OS credential store.
+
+        When ``GITGUARDIAN_API_KEY`` is set in the environment it overrides any
+        stored token in :meth:`Config.get_api_key_and_source`, so we skip the
+        keyring access here to avoid prompting the user (e.g. for OS keychain
+        unlock) for a credential that will not be used. This matters for
+        global ggshield invocations like pre-commit hooks that already supply
+        a token via the environment.
         """
         config_path = get_auth_config_filepath()
 
@@ -158,6 +166,9 @@ class AuthConfig(FromDictMixin, ToDictMixin):
             instance = cls.from_dict(data)
         else:
             instance = cls()
+
+        if os.environ.get("GITGUARDIAN_API_KEY"):
+            return instance
 
         store = get_token_store()
         if store.uses_external_storage:
