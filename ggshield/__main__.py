@@ -127,10 +127,16 @@ def cli(
     instance: Optional[str],
     **kwargs: Any,
 ) -> None:
+    # Load .env before Config so AuthConfig.load() can see GITGUARDIAN_API_KEY
+    # set via dotenv and skip keyring access when an env-provided token will be
+    # used instead.
+    dotenv_vars = load_dot_env()
+
     # Create ContextObj, load config
     ctx.obj = ctx_obj = ContextObj()
     ctx_obj.cache = Cache()
     ctx_obj.config = Config(config_path)
+    ctx_obj.config._dotenv_vars = dotenv_vars
     user_config = ctx_obj.config.user_config
 
     # If the config wants a higher UI level, set it now
@@ -144,8 +150,6 @@ def cli(
     # --insecure, the config will contain `insecure: true`.
     if insecure or allow_self_signed:
         user_config.insecure = True
-
-    ctx_obj.config._dotenv_vars = load_dot_env()
 
     # Apply instance from command line
     if instance:

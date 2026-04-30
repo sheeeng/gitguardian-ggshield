@@ -179,6 +179,13 @@ def _reset_token_store():
 class TestAuthConfigKeyring:
     """Tests for keyring integration in AuthConfig load/save."""
 
+    @pytest.fixture(autouse=True)
+    def _no_env_api_key(self, monkeypatch):
+        """AuthConfig.load() skips keyring access when GITGUARDIAN_API_KEY is
+        set in the environment. The session-wide test fixture sets a dummy
+        value, so unset it here to exercise the keyring path."""
+        monkeypatch.delenv("GITGUARDIAN_API_KEY", raising=False)
+
     def test_save_with_keyring(self, monkeypatch):
         """
         GIVEN a config with a cleartext token
@@ -408,6 +415,36 @@ class TestAuthConfigKeyring:
         assert config.auth_config.instances[0].account.token == ""
         assert config.auth_config.instances[1].account is not None
         assert config.auth_config.instances[1].account.token == ""
+
+    def test_load_skips_keyring_when_env_api_key_set(self, monkeypatch):
+        """
+        GIVEN a YAML config with keyring sentinel tokens AND GITGUARDIAN_API_KEY set
+        WHEN loading
+        THEN the keyring is not accessed (no prompt to the user) since the
+             env-provided key would override stored tokens anyway
+        """
+        monkeypatch.delenv("GGSHIELD_NO_KEYRING", raising=False)
+        monkeypatch.setenv("GITGUARDIAN_API_KEY", "env-token")
+
+        sentinel_config = deepcopy(TEST_AUTH_CONFIG)
+        for instance in sentinel_config["instances"]:
+            for account in instance["accounts"]:
+                account["token"] = KEYRING_SENTINEL
+        write_yaml(get_auth_config_filepath(), sentinel_config)
+
+        mock_store = KeyringTokenStore()
+        mock_store.get_token = MagicMock()
+        mock_store.is_available = MagicMock()
+
+        with patch(
+            "ggshield.core.config.auth_config.get_token_store",
+            return_value=mock_store,
+        ) as mock_get_store:
+            Config()
+
+        mock_get_store.assert_not_called()
+        mock_store.is_available.assert_not_called()
+        mock_store.get_token.assert_not_called()
 
     def test_file_store_preserves_cleartext(self, monkeypatch):
         """
