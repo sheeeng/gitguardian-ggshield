@@ -1,5 +1,13 @@
 # Changelog
 
+<a id='changelog-1.50.3'></a>
+
+## 1.50.3 — 2026-04-30
+
+### Fixed
+
+- Skip OS keyring access at startup when `GITGUARDIAN_API_KEY` is set in the environment (or in a `.env` file). This avoids redundant keychain unlock prompts on systems using multiple ggshield instances.
+
 <a id='changelog-1.50.2'></a>
 
 ## 1.50.2 — 2026-04-29
