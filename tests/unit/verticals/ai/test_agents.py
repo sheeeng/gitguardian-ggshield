@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 from pygitguardian.models import MCPToolInfo, UserInfo
 
+from ggshield.core.dirs import get_user_home_dir
 from ggshield.verticals.ai.agents.claude_code import Claude, _mangle_server_name
 from ggshield.verticals.ai.agents.copilot import Copilot
 from ggshield.verticals.ai.agents.cursor import Cursor, _parse_tool_arguments
@@ -289,6 +290,303 @@ class TestClaudeGetUserMcpConfigurations:
         ):
             claude = Claude()
             configs = list(claude._get_user_mcp_configurations())
+        assert configs == []
+
+
+class TestClaudeGetPluginMcpConfigurations:
+    def _setup(self, tmp_path: Path) -> Path:
+        config_folder = tmp_path / ".claude"
+        (config_folder / "plugins").mkdir(parents=True)
+        return config_folder
+
+    def _make_plugin(
+        self,
+        config_folder: Path,
+        plugin_id: str,
+        version: str = "1.0.0",
+    ) -> Path:
+        install_dir = (
+            config_folder
+            / "plugins"
+            / "cache"
+            / plugin_id.split("@")[1]
+            / plugin_id.split("@")[0]
+            / version
+        )
+        install_dir.mkdir(parents=True)
+        (install_dir / ".claude-plugin").mkdir()
+        (install_dir / ".claude-plugin" / "plugin.json").write_text(
+            json.dumps({"name": plugin_id.split("@")[0]})
+        )
+        return install_dir
+
+    def _patch(self, claude: Claude, config_folder: Path):
+        return patch.object(
+            type(claude),
+            "config_folder",
+            new_callable=lambda: property(lambda self: config_folder),
+        )
+
+    def test_user_scope_plugin_with_bare_mcp_json(self, tmp_path: Path):
+        config_folder = self._setup(tmp_path)
+        install_dir = self._make_plugin(config_folder, "context7@official")
+        # Bare layout (just servers, no "mcpServers" wrapper)
+        (install_dir / ".mcp.json").write_text(
+            json.dumps({"context7": {"command": "npx", "args": ["-y", "ctx7"]}})
+        )
+        (config_folder / "plugins" / "installed_plugins.json").write_text(
+            json.dumps(
+                {
+                    "version": 2,
+                    "plugins": {
+                        "context7@official": [
+                            {
+                                "scope": "user",
+                                "installPath": str(install_dir),
+                                "version": "1.0.0",
+                            }
+                        ]
+                    },
+                }
+            )
+        )
+
+        claude = Claude()
+        with self._patch(claude, config_folder):
+            configs = list(claude._get_plugin_mcp_configurations())
+
+        assert len(configs) == 1
+        assert configs[0].name == "context7"
+        assert configs[0].scope == Scope.USER
+        assert configs[0].project is None
+        assert configs[0].transport == Transport.STDIO
+        assert configs[0].command == "npx"
+
+    def test_project_scope_plugin_tied_to_project(self, tmp_path: Path):
+        config_folder = self._setup(tmp_path)
+        install_dir = self._make_plugin(config_folder, "shared@official")
+        (install_dir / ".mcp.json").write_text(
+            json.dumps(
+                {"mcpServers": {"shared-srv": {"command": "node", "args": ["s.js"]}}}
+            )
+        )
+        project_path = get_user_home_dir() / "proj"
+        (config_folder / "plugins" / "installed_plugins.json").write_text(
+            json.dumps(
+                {
+                    "plugins": {
+                        "shared@official": [
+                            {
+                                "scope": "project",
+                                "projectPath": str(project_path),
+                                "installPath": str(install_dir),
+                                "version": "1.0.0",
+                            }
+                        ]
+                    }
+                }
+            )
+        )
+
+        claude = Claude()
+        with self._patch(claude, config_folder):
+            configs = list(claude._get_plugin_mcp_configurations())
+
+        assert len(configs) == 1
+        assert configs[0].name == "shared-srv"
+        assert configs[0].scope == Scope.PROJECT
+        assert configs[0].project == str(project_path)
+
+    def test_local_scope_plugin_marked_as_user_with_project(self, tmp_path: Path):
+        config_folder = self._setup(tmp_path)
+        install_dir = self._make_plugin(config_folder, "local@official")
+        (install_dir / ".mcp.json").write_text(
+            json.dumps({"local-srv": {"command": "node"}})
+        )
+        project_path = get_user_home_dir() / "proj"
+        (config_folder / "plugins" / "installed_plugins.json").write_text(
+            json.dumps(
+                {
+                    "plugins": {
+                        "local@official": [
+                            {
+                                "scope": "local",
+                                "projectPath": str(project_path),
+                                "installPath": str(install_dir),
+                            }
+                        ]
+                    }
+                }
+            )
+        )
+
+        claude = Claude()
+        with self._patch(claude, config_folder):
+            configs = list(claude._get_plugin_mcp_configurations())
+
+        assert len(configs) == 1
+        assert configs[0].scope == Scope.USER
+        assert configs[0].project == str(project_path)
+
+    def test_inline_mcp_servers_in_manifest(self, tmp_path: Path):
+        config_folder = self._setup(tmp_path)
+        install_dir = self._make_plugin(config_folder, "inline@official")
+        (install_dir / ".claude-plugin" / "plugin.json").write_text(
+            json.dumps(
+                {
+                    "name": "inline",
+                    "mcpServers": {
+                        "inline-srv": {
+                            "url": "https://example.com/mcp",
+                            "transport": "sse",
+                        }
+                    },
+                }
+            )
+        )
+        (config_folder / "plugins" / "installed_plugins.json").write_text(
+            json.dumps(
+                {
+                    "plugins": {
+                        "inline@official": [
+                            {
+                                "scope": "user",
+                                "installPath": str(install_dir),
+                            }
+                        ]
+                    }
+                }
+            )
+        )
+
+        claude = Claude()
+        with self._patch(claude, config_folder):
+            configs = list(claude._get_plugin_mcp_configurations())
+
+        assert len(configs) == 1
+        assert configs[0].name == "inline-srv"
+        assert configs[0].transport == Transport.SSE
+        assert configs[0].url == "https://example.com/mcp"
+
+    def test_missing_install_dir_skipped(self, tmp_path: Path):
+        config_folder = self._setup(tmp_path)
+        (config_folder / "plugins" / "installed_plugins.json").write_text(
+            json.dumps(
+                {
+                    "plugins": {
+                        "ghost@official": [
+                            {
+                                "scope": "user",
+                                "installPath": "/does/not/exist",
+                            }
+                        ]
+                    }
+                }
+            )
+        )
+
+        claude = Claude()
+        with self._patch(claude, config_folder):
+            configs = list(claude._get_plugin_mcp_configurations())
+
+        assert configs == []
+
+    def test_plugin_without_mcp_servers_yields_nothing(self, tmp_path: Path):
+        config_folder = self._setup(tmp_path)
+        install_dir = self._make_plugin(config_folder, "skills@official")
+        (config_folder / "plugins" / "installed_plugins.json").write_text(
+            json.dumps(
+                {
+                    "plugins": {
+                        "skills@official": [
+                            {
+                                "scope": "user",
+                                "installPath": str(install_dir),
+                            }
+                        ]
+                    }
+                }
+            )
+        )
+
+        claude = Claude()
+        with self._patch(claude, config_folder):
+            configs = list(claude._get_plugin_mcp_configurations())
+
+        assert configs == []
+
+    def test_missing_installed_plugins_file_yields_nothing(self, tmp_path: Path):
+        config_folder = self._setup(tmp_path)
+
+        claude = Claude()
+        with self._patch(claude, config_folder):
+            configs = list(claude._get_plugin_mcp_configurations())
+
+        assert configs == []
+
+
+class TestClaudeGetClaudeAiMcpConfigurations:
+    def test_dedup_across_two_sources(self, tmp_path: Path):
+        config_folder = tmp_path / ".claude"
+        config_folder.mkdir()
+        (tmp_path / ".claude.json").write_text(
+            json.dumps(
+                {
+                    "claudeAiMcpEverConnected": [
+                        "claude.ai Notion",
+                        "claude.ai Granola",
+                    ]
+                }
+            )
+        )
+        (config_folder / "mcp-needs-auth-cache.json").write_text(
+            json.dumps(
+                {
+                    "claude.ai Notion": {"timestamp": 1, "id": "mcpsrv_a"},
+                    "claude.ai Slack": {"timestamp": 2, "id": "mcpsrv_b"},
+                }
+            )
+        )
+
+        claude = Claude()
+        with (
+            patch(
+                "ggshield.verticals.ai.agents.claude_code.get_user_home_dir",
+                return_value=tmp_path,
+            ),
+            patch.object(
+                type(claude),
+                "config_folder",
+                new_callable=lambda: property(lambda self: config_folder),
+            ),
+        ):
+            configs = list(claude._get_claudeai_mcp_configurations())
+
+        names = [c.name for c in configs]
+        assert names == ["Notion", "Granola", "Slack"]
+        for cfg in configs:
+            assert cfg.scope == Scope.USER
+            assert cfg.transport == Transport.HTTP
+            assert cfg.project is None
+
+    def test_no_sources_yields_nothing(self, tmp_path: Path):
+        config_folder = tmp_path / ".claude"
+        config_folder.mkdir()
+
+        claude = Claude()
+        with (
+            patch(
+                "ggshield.verticals.ai.agents.claude_code.get_user_home_dir",
+                return_value=tmp_path,
+            ),
+            patch.object(
+                type(claude),
+                "config_folder",
+                new_callable=lambda: property(lambda self: config_folder),
+            ),
+        ):
+            configs = list(claude._get_claudeai_mcp_configurations())
+
         assert configs == []
 
 

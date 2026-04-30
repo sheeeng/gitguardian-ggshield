@@ -42,21 +42,14 @@ def discover_cmd(
     """
     Discover MCP servers and their configuration.
 
-    Parses MCP configuration files from supported assistants
+    Parses configuration files from supported assistants.
 
     Examples:
-      ggshield mcp discover
-      ggshield mcp discover --json
+      ggshield ai discover
+      ggshield ai discover --json
     """
 
     config = discover_ai_configuration()
-
-    summary = _summarize_discovery(config)
-
-    if use_json:
-        click.echo(json.dumps(summary, indent=2))
-    else:
-        print_summary(summary)
 
     ctx_obj = ContextObj.get(ctx)
     try:
@@ -72,7 +65,20 @@ def discover_cmd(
         config = submit_ai_discovery(client, config)
         save_discovery_cache(config)
     except Exception as exc:
-        ui.display_warning(f"Could not upload AI discovery to GitGuardian: {exc}")
+        if "missing the following scope:" in str(exc):
+            scope = str(exc).split("missing the following scope:")[1].strip()
+            reason = f'this command requires the {scope} scope. Run ggshield auth login --scopes "{scope}" to grant it.'
+        else:
+            reason = str(exc)
+        ui.display_warning(f"Could not upload AI discovery to GitGuardian: {reason}")
+
+    # Summarize after sending to GIM, so we can benefit from its fixes.
+    summary = _summarize_discovery(config)
+
+    if use_json:
+        click.echo(json.dumps(summary, indent=2))
+    else:
+        print_summary(summary)
 
 
 def _summarize_discovery(config: AIDiscovery) -> Dict[str, Any]:
@@ -81,20 +87,26 @@ def _summarize_discovery(config: AIDiscovery) -> Dict[str, Any]:
     servers = []
     for server in config.servers:
         projects = set()
+        agents = set()
         installed_globally = False
         for conf in server.configurations:
             agent_names.add(conf.agent)
+            agents.add(conf.agent)
             if conf.scope == Scope.USER:
                 installed_globally = True
             elif conf.project:
                 projects.add(conf.project)
         servers.append(
             {
-                "name": server.display_name or server.name,
+                # If we don't have a display name, any configuration name
+                # is probably less confusing than our deduplication key
+                "name": server.display_name or server.configurations[0].name,
                 "installed_globally": installed_globally,
                 "projects": sorted(projects),
+                "agents": sorted(AGENTS[name].display_name for name in agents),
             }
         )
+    servers = sorted(servers, key=lambda x: x["name"])
     return {
         "agents": [AGENTS[name].display_name for name in agent_names],
         "servers": servers,
@@ -115,7 +127,7 @@ def print_summary(summary: Dict[str, Any]) -> None:
 
     click.echo(
         f"\n{format_text('Agents discovered:', STYLE['key'])} "
-        f"{', '.join(format_text(agent, STYLE['detector']) for agent in agents) if agents else 'none'} "
+        f"{', '.join(format_text(agent, STYLE['heading']) for agent in agents) if agents else 'none'} "
         f"({nb_agents} {pluralize('agent', nb_agents)})"
     )
     click.echo(
@@ -123,14 +135,18 @@ def print_summary(summary: Dict[str, Any]) -> None:
         f"{nb_servers} {pluralize('server', nb_servers)}\n"
     )
 
-    for i, server in enumerate(servers, start=1):
+    for server in servers:
         name = server.get("name", "unknown")
         installed_globally = server.get("installed_globally", False)
         projects: List[str] = server.get("projects", [])
+        server_agents: List[str] = server.get("agents", [])
 
         start = format_text(">", STYLE["detector_line_start"])
         server_name = format_text(name, STYLE["detector"])
-        click.echo(f"{start} {server_name}")
+        agents_names = ", ".join(
+            format_text(agent, STYLE["heading"]) for agent in server_agents
+        )
+        click.echo(f"{start} {server_name} ({agents_names})")
 
         indent = "   "
         scope = "user" if installed_globally else "project"
