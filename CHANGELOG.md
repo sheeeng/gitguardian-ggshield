@@ -1,5 +1,29 @@
 # Changelog
 
+<a id='changelog-1.50.3'></a>
+
+## 1.50.3 — 2026-04-30
+
+### Fixed
+
+- Skip OS keyring access at startup when `GITGUARDIAN_API_KEY` is set in the environment (or in a `.env` file). This avoids redundant keychain unlock prompts on systems using multiple ggshield instances.
+
+<a id='changelog-1.50.2'></a>
+
+## 1.50.2 — 2026-04-29
+
+### Fixed
+
+- Fixed `uv tool install ggshield` resolution by requiring sigstore 4, avoiding sigstore 3's transitive pre-release dependency on `betterproto`.
+
+<a id='changelog-1.50.1'></a>
+
+## 1.50.1 — 2026-04-29
+
+### Fixed
+
+- Fixed plugin signature verification in PyInstaller-based packages by bundling sigstore's embedded TUF trust roots.
+
 <a id='changelog-1.50.0'></a>
 
 ## 1.50.0 — 2026-04-28
