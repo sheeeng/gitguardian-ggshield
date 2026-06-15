@@ -92,72 +92,57 @@ class TestMissingBundle:
         assert result.status == SignatureStatus.MISSING
 
 
-class TestSignatureVerificationModeWarn:
-    """WARN mode verifies offline so the sigstore TUF refresh is skipped."""
+class TestVerifierIsPinnedToBundledRoot:
+    """Both modes must verify against the trust root bundled in the pinned
+    sigstore release, never the cache/network-backed ``Verifier.production``
+    path (which fails on locked-down networks: "failed to refresh TUF
+    metadata")."""
 
-    def test_warn_mode_uses_offline_verifier(self, tmp_path: Path) -> None:
+    def _assert_uses_bundled_verifier(
+        self, tmp_path: Path, mode: SignatureVerificationMode
+    ) -> None:
         wheel = tmp_path / "plugin-1.0.0.whl"
         wheel.write_bytes(b"fake wheel content")
         bundle = tmp_path / "plugin-1.0.0.whl.sigstore"
         bundle.write_bytes(b'{"fake": "bundle"}')
 
+        mock_verifier = MagicMock()
+        mock_verifier.verify_artifact.return_value = None
         mock_verifier_cls = MagicMock()
         mock_bundle_cls = MagicMock()
-        mock_all_of_cls = MagicMock()
-        mock_oidc_issuer_cls = MagicMock()
-        mock_gh_repo_cls = MagicMock()
-
-        mock_verifier_cls.production.return_value.verify_artifact.return_value = None
         mock_bundle_cls.from_json.return_value = MagicMock()
 
         with (
+            patch(
+                "ggshield.core.plugin.signature._bundled_verifier",
+                return_value=mock_verifier,
+            ) as mock_bundled,
             patch("ggshield.core.plugin.signature.Verifier", mock_verifier_cls),
             patch("ggshield.core.plugin.signature.Bundle", mock_bundle_cls),
-            patch("ggshield.core.plugin.signature.AllOf", mock_all_of_cls),
-            patch("ggshield.core.plugin.signature.OIDCIssuer", mock_oidc_issuer_cls),
+            patch("ggshield.core.plugin.signature.AllOf", MagicMock()),
+            patch("ggshield.core.plugin.signature.OIDCIssuer", MagicMock()),
             patch(
                 "ggshield.core.plugin.signature.GitHubWorkflowRepository",
-                mock_gh_repo_cls,
+                MagicMock(),
             ),
         ):
-            verify_wheel_signature(wheel, SignatureVerificationMode.WARN)
+            verify_wheel_signature(wheel, mode)
 
-        # The TUF refresh runs inside Verifier.production() unless offline=True
-        # is passed; --allow-unsigned must opt into offline verification.
-        mock_verifier_cls.production.assert_called_once_with(offline=True)
+        # The pinned, bundled verifier does the work...
+        mock_bundled.assert_called_once_with()
+        mock_verifier.verify_artifact.assert_called_once()
+        # ...and the cache/network-backed production() path is never taken.
+        mock_verifier_cls.production.assert_not_called()
 
-    def test_strict_mode_uses_online_verifier(self, tmp_path: Path) -> None:
-        wheel = tmp_path / "plugin-1.0.0.whl"
-        wheel.write_bytes(b"fake wheel content")
-        bundle = tmp_path / "plugin-1.0.0.whl.sigstore"
-        bundle.write_bytes(b'{"fake": "bundle"}')
+    def test_strict_mode_uses_bundled_verifier(self, tmp_path: Path) -> None:
+        self._assert_uses_bundled_verifier(tmp_path, SignatureVerificationMode.STRICT)
 
-        mock_verifier_cls = MagicMock()
-        mock_bundle_cls = MagicMock()
-        mock_all_of_cls = MagicMock()
-        mock_oidc_issuer_cls = MagicMock()
-        mock_gh_repo_cls = MagicMock()
-
-        mock_verifier_cls.production.return_value.verify_artifact.return_value = None
-        mock_bundle_cls.from_json.return_value = MagicMock()
-
-        with (
-            patch("ggshield.core.plugin.signature.Verifier", mock_verifier_cls),
-            patch("ggshield.core.plugin.signature.Bundle", mock_bundle_cls),
-            patch("ggshield.core.plugin.signature.AllOf", mock_all_of_cls),
-            patch("ggshield.core.plugin.signature.OIDCIssuer", mock_oidc_issuer_cls),
-            patch(
-                "ggshield.core.plugin.signature.GitHubWorkflowRepository",
-                mock_gh_repo_cls,
-            ),
-        ):
-            verify_wheel_signature(wheel, SignatureVerificationMode.STRICT)
-
-        mock_verifier_cls.production.assert_called_once_with(offline=False)
+    def test_warn_mode_uses_bundled_verifier(self, tmp_path: Path) -> None:
+        self._assert_uses_bundled_verifier(tmp_path, SignatureVerificationMode.WARN)
 
 
 class TestBundleVerification:
-    """Tests for bundle verification with mocked sigstore."""
+    """Tests for bundle verification with a mocked (bundled) verifier."""
 
     def _setup_wheel_and_bundle(self, tmp_path: Path) -> Path:
         """Create a fake wheel and bundle file."""
@@ -170,16 +155,20 @@ class TestBundleVerification:
     @staticmethod
     @contextmanager
     def _sigstore_modules(
-        mock_verifier_cls: MagicMock,
+        mock_verifier: MagicMock,
         mock_bundle_cls: MagicMock,
         mock_all_of_cls: MagicMock,
         mock_oidc_issuer_cls: MagicMock,
         mock_gh_repo_cls: MagicMock,
     ) -> Iterator[None]:
-        """Patch the top-level sigstore imports in the signature module."""
+        """Patch the sigstore seams: the bundled/pinned verifier plus the
+        bundle and policy helpers used by the signature module."""
         with (
             patch("ggshield.core.plugin.signature.Bundle", mock_bundle_cls),
-            patch("ggshield.core.plugin.signature.Verifier", mock_verifier_cls),
+            patch(
+                "ggshield.core.plugin.signature._bundled_verifier",
+                return_value=mock_verifier,
+            ),
             patch("ggshield.core.plugin.signature.AllOf", mock_all_of_cls),
             patch(
                 "ggshield.core.plugin.signature.OIDCIssuer",
@@ -196,18 +185,10 @@ class TestBundleVerification:
         """Test successful signature verification."""
         wheel = self._setup_wheel_and_bundle(tmp_path)
 
-        mock_verifier_cls = MagicMock()
-        mock_bundle_cls = MagicMock()
-        mock_all_of_cls = MagicMock()
-        mock_oidc_issuer_cls = MagicMock()
-        mock_gh_repo_cls = MagicMock()
-
         mock_verifier = MagicMock()
-        mock_verifier_cls.production.return_value = mock_verifier
         mock_verifier.verify_artifact.return_value = None  # Success
-
-        mock_bundle = MagicMock()
-        mock_bundle_cls.from_json.return_value = mock_bundle
+        mock_bundle_cls = MagicMock()
+        mock_bundle_cls.from_json.return_value = MagicMock()
 
         trusted = [
             TrustedIdentity(
@@ -217,11 +198,11 @@ class TestBundleVerification:
         ]
 
         with self._sigstore_modules(
-            mock_verifier_cls,
+            mock_verifier,
             mock_bundle_cls,
-            mock_all_of_cls,
-            mock_oidc_issuer_cls,
-            mock_gh_repo_cls,
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
         ):
             result = verify_wheel_signature(
                 wheel, SignatureVerificationMode.STRICT, trusted
@@ -234,20 +215,12 @@ class TestBundleVerification:
         """Test that invalid signature raises in STRICT mode."""
         wheel = self._setup_wheel_and_bundle(tmp_path)
 
-        mock_verifier_cls = MagicMock()
-        mock_bundle_cls = MagicMock()
-        mock_all_of_cls = MagicMock()
-        mock_oidc_issuer_cls = MagicMock()
-        mock_gh_repo_cls = MagicMock()
-
         mock_verifier = MagicMock()
-        mock_verifier_cls.production.return_value = mock_verifier
         mock_verifier.verify_artifact.side_effect = SigstoreVerificationError(
             "Verification failed"
         )
-
-        mock_bundle = MagicMock()
-        mock_bundle_cls.from_json.return_value = mock_bundle
+        mock_bundle_cls = MagicMock()
+        mock_bundle_cls.from_json.return_value = MagicMock()
 
         trusted = [
             TrustedIdentity(
@@ -257,11 +230,11 @@ class TestBundleVerification:
         ]
 
         with self._sigstore_modules(
-            mock_verifier_cls,
+            mock_verifier,
             mock_bundle_cls,
-            mock_all_of_cls,
-            mock_oidc_issuer_cls,
-            mock_gh_repo_cls,
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
         ):
             with pytest.raises(SignatureVerificationError) as exc_info:
                 verify_wheel_signature(wheel, SignatureVerificationMode.STRICT, trusted)
@@ -272,20 +245,12 @@ class TestBundleVerification:
         """Test that invalid signature returns INVALID in WARN mode."""
         wheel = self._setup_wheel_and_bundle(tmp_path)
 
-        mock_verifier_cls = MagicMock()
-        mock_bundle_cls = MagicMock()
-        mock_all_of_cls = MagicMock()
-        mock_oidc_issuer_cls = MagicMock()
-        mock_gh_repo_cls = MagicMock()
-
         mock_verifier = MagicMock()
-        mock_verifier_cls.production.return_value = mock_verifier
         mock_verifier.verify_artifact.side_effect = SigstoreVerificationError(
             "Verification failed"
         )
-
-        mock_bundle = MagicMock()
-        mock_bundle_cls.from_json.return_value = mock_bundle
+        mock_bundle_cls = MagicMock()
+        mock_bundle_cls.from_json.return_value = MagicMock()
 
         trusted = [
             TrustedIdentity(
@@ -295,11 +260,11 @@ class TestBundleVerification:
         ]
 
         with self._sigstore_modules(
-            mock_verifier_cls,
+            mock_verifier,
             mock_bundle_cls,
-            mock_all_of_cls,
-            mock_oidc_issuer_cls,
-            mock_gh_repo_cls,
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
         ):
             result = verify_wheel_signature(
                 wheel, SignatureVerificationMode.WARN, trusted
@@ -311,22 +276,14 @@ class TestBundleVerification:
         """Test that multiple trusted identities are tried in order."""
         wheel = self._setup_wheel_and_bundle(tmp_path)
 
-        mock_verifier_cls = MagicMock()
-        mock_bundle_cls = MagicMock()
-        mock_all_of_cls = MagicMock()
-        mock_oidc_issuer_cls = MagicMock()
-        mock_gh_repo_cls = MagicMock()
-
         mock_verifier = MagicMock()
-        mock_verifier_cls.production.return_value = mock_verifier
         # First identity fails, second succeeds
         mock_verifier.verify_artifact.side_effect = [
             SigstoreVerificationError("Wrong identity"),
             None,  # Success
         ]
-
-        mock_bundle = MagicMock()
-        mock_bundle_cls.from_json.return_value = mock_bundle
+        mock_bundle_cls = MagicMock()
+        mock_bundle_cls.from_json.return_value = MagicMock()
 
         trusted = [
             TrustedIdentity(
@@ -340,11 +297,11 @@ class TestBundleVerification:
         ]
 
         with self._sigstore_modules(
-            mock_verifier_cls,
+            mock_verifier,
             mock_bundle_cls,
-            mock_all_of_cls,
-            mock_oidc_issuer_cls,
-            mock_gh_repo_cls,
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
         ):
             result = verify_wheel_signature(
                 wheel, SignatureVerificationMode.STRICT, trusted
@@ -352,3 +309,30 @@ class TestBundleVerification:
 
         assert result.status == SignatureStatus.VALID
         assert result.identity == trusted[1].repository
+
+
+class TestBundledVerifier:
+    """Guards the private-sigstore wiring that pins the bundled trust root."""
+
+    def test_resolves_embedded_root_and_skips_production(self) -> None:
+        # Exercises the real embedded-root resolution
+        # (files / as_file / TrustedRoot.from_file): fails loudly if a sigstore
+        # upgrade relocates the embedded _store or changes the production TUF URL.
+        # Verifier itself is mocked so no real verifier/network is built; we
+        # only assert it is constructed from a trusted_root, never via the
+        # cache/network-backed production() path.
+        from ggshield.core.plugin.signature import _bundled_verifier
+
+        _bundled_verifier.cache_clear()
+        sentinel = MagicMock()
+        try:
+            with patch("ggshield.core.plugin.signature.Verifier") as mock_verifier_cls:
+                mock_verifier_cls.return_value = sentinel
+                result = _bundled_verifier()
+        finally:
+            _bundled_verifier.cache_clear()
+
+        assert result is sentinel
+        mock_verifier_cls.assert_called_once()
+        assert "trusted_root" in mock_verifier_cls.call_args.kwargs
+        mock_verifier_cls.production.assert_not_called()

@@ -117,7 +117,7 @@ class TestPluginList:
             cli_fs_runner,
             plugins,
             source_for_name={"machine_scan": PluginSource(type=source_type)},
-            signature_label="signed (GitGuardian/satori)",
+            signature_label="signed",
         )
 
         assert result.exit_code == ExitCode.SUCCESS
@@ -125,7 +125,7 @@ class TestPluginList:
         assert expected_label in result.output
         # The legacy label must not leak through for any recognised source type.
         assert ", local," not in result.output
-        assert "signature: signed (GitGuardian/satori)" in result.output
+        assert "signature: signed" in result.output
 
     def test_list_legacy_wheel_without_manifest_falls_back_to_on_disk(
         self, cli_fs_runner

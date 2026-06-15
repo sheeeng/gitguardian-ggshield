@@ -111,18 +111,16 @@ def get_signature_label(
         return None
 
     status = sig_info.get("status", "unknown")
-    identity = sig_info.get("identity")
 
+    # The signing identity is recorded in the manifest for audit but never
+    # shown: the product model is binary (signed / not), so the label is a
+    # single clean word with no signing-repository parenthetical.
     if status == SignatureStatus.VALID.value:
-        if identity:
-            return f"signed ({identity})"
         return "signed"
 
     if trusted_unsigned:
         return "unsigned (trusted)"
 
-    if identity:
-        return f"{status} ({identity})"
     return status
 
 
