@@ -317,7 +317,7 @@ class TestBundledVerifier:
     def test_resolves_embedded_root_and_skips_production(self) -> None:
         # Exercises the real embedded-root resolution
         # (files / as_file / TrustedRoot.from_file): fails loudly if a sigstore
-        # upgrade relocates the embedded _store or the DEFAULT_TUF_URL constant.
+        # upgrade relocates the embedded _store or changes the production TUF URL.
         # Verifier itself is mocked so no real verifier/network is built; we
         # only assert it is constructed from a trusted_root, never via the
         # cache/network-backed production() path.

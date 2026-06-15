@@ -27,7 +27,6 @@ from pathlib import Path
 from typing import List, Optional
 from urllib.parse import quote
 
-from sigstore._internal.tuf import DEFAULT_TUF_URL
 from sigstore.errors import VerificationError
 from sigstore.models import Bundle, TrustedRoot
 from sigstore.verify import Verifier
@@ -105,6 +104,12 @@ def get_bundle_path(wheel_path: Path) -> Optional[Path]:
     return None
 
 
+# Hardcode sigstore's production TUF URL rather than importing the private
+# sigstore._internal.tuf.DEFAULT_TUF_URL, so a refactor of that module can't
+# break our import. The value is stable and rarely (if ever) changes.
+_SIGSTORE_PROD_TUF_URL = "https://tuf-repo-cdn.sigstore.dev"
+
+
 @functools.lru_cache(maxsize=1)
 def _bundled_verifier() -> Verifier:
     """Build a Verifier pinned to the trust root bundled in our sigstore release.
@@ -122,8 +127,14 @@ def _bundled_verifier() -> Verifier:
     (``sigstore._store/<quoted-tuf-url>/trusted_root.json``); the dedicated unit
     test fails loudly if a sigstore upgrade relocates it.
     """
+    # sigstore exposes no public API to load its embedded trust root without the
+    # on-disk TUF cache, so read the bundled root straight from its package data
+    # -- the same sigstore._store resource sigstore's own read_embedded uses.
+    # TestBundledVerifier fails loudly if a sigstore upgrade relocates it.
     embedded = (
-        files("sigstore._store") / quote(DEFAULT_TUF_URL, safe="") / "trusted_root.json"
+        files("sigstore._store")
+        / quote(_SIGSTORE_PROD_TUF_URL, safe="")
+        / "trusted_root.json"
     )
     with as_file(embedded) as trusted_root_path:
         trusted_root = TrustedRoot.from_file(str(trusted_root_path))
