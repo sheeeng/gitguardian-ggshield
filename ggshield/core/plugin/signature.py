@@ -5,22 +5,31 @@ Provides keyless signature verification for plugin wheels using sigstore
 bundles. Signatures are identity-based: ggshield trusts a configured set
 of GitHub Actions workflow identities (OIDC).
 
-Verification modes:
+Verification always runs against the trust root bundled inside our pinned
+sigstore dependency (see ``_bundled_verifier``). ggshield never refreshes TUF
+metadata over the network, because that refresh fails on locked-down / proxied
+networks ("failed to refresh TUF metadata"). The bundled root is enough to
+verify GitGuardian's own plugin signatures; the trade-off is that trust-root
+freshness tracks the pinned sigstore version, so keep that dependency current.
+
+Verification modes (these decide how a result is handled, not how it is computed):
 - STRICT: block unsigned or invalid plugins
-- WARN: log a warning but allow loading. Verification still runs against the
-  embedded / cached sigstore trust root (offline=True) so the TUF metadata
-  refresh, which can fail in restricted networks, is skipped.
+- WARN: log a warning but allow loading (the ``--allow-unsigned`` override)
 - DISABLED: skip verification entirely
 """
 
 import enum
+import functools
 import logging
 from dataclasses import dataclass
+from importlib.resources import as_file, files
 from pathlib import Path
 from typing import List, Optional
+from urllib.parse import quote
 
+from sigstore._internal.tuf import DEFAULT_TUF_URL
 from sigstore.errors import VerificationError
-from sigstore.models import Bundle
+from sigstore.models import Bundle, TrustedRoot
 from sigstore.verify import Verifier
 from sigstore.verify.policy import AllOf, GitHubWorkflowRepository, OIDCIssuer
 
@@ -96,6 +105,31 @@ def get_bundle_path(wheel_path: Path) -> Optional[Path]:
     return None
 
 
+@functools.lru_cache(maxsize=1)
+def _bundled_verifier() -> Verifier:
+    """Build a Verifier pinned to the trust root bundled in our sigstore release.
+
+    We deliberately do NOT use ``Verifier.production(offline=True)``: in offline
+    mode sigstore reads its shared on-disk TUF target cache and only seeds the
+    embedded root when that cache is *absent* (sigstore ``_internal/tuf.py``
+    ``TrustUpdater``), so a stale root left by earlier sigstore use on the
+    machine would be used instead. We always verify against the root shipped in
+    the pinned sigstore distribution: deterministic, and it never touches the
+    network (the network refresh is what fails on locked-down / proxied networks
+    with "failed to refresh TUF metadata").
+
+    Resolves the same embedded resource sigstore's own ``read_embedded`` reads
+    (``sigstore._store/<quoted-tuf-url>/trusted_root.json``); the dedicated unit
+    test fails loudly if a sigstore upgrade relocates it.
+    """
+    embedded = (
+        files("sigstore._store") / quote(DEFAULT_TUF_URL, safe="") / "trusted_root.json"
+    )
+    with as_file(embedded) as trusted_root_path:
+        trusted_root = TrustedRoot.from_file(str(trusted_root_path))
+    return Verifier(trusted_root=trusted_root)
+
+
 def verify_wheel_signature(
     wheel_path: Path,
     mode: SignatureVerificationMode,
@@ -133,13 +167,9 @@ def verify_wheel_signature(
         logger.warning("%s", msg)
         return SignatureInfo(status=SignatureStatus.MISSING, message=msg)
 
-    # Verify bundle. In WARN mode (--allow-unsigned) we use the embedded /
-    # cached sigstore trust root via offline=True so that the TUF metadata
-    # refresh -- which can fail in restricted networks -- is skipped.
     bundle = Bundle.from_json(bundle_path.read_bytes())
     wheel_bytes = wheel_path.read_bytes()
-    offline = mode == SignatureVerificationMode.WARN
-    verifier = Verifier.production(offline=offline)
+    verifier = _bundled_verifier()
 
     for trusted in trusted_identities:
         policy = AllOf(

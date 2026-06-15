@@ -1714,14 +1714,16 @@ class TestGetSignatureLabel:
         manifest: dict = {"signature": {}}
         assert get_signature_label(manifest) is None
 
-    def test_returns_signed_with_identity(self) -> None:
+    def test_returns_plain_signed_and_drops_identity(self) -> None:
+        # The signing identity is kept in the manifest for audit but never
+        # shown: the label is binary ("signed") and identical on every OS.
         manifest: dict = {
             "signature": {
                 "status": "valid",
                 "identity": "GitGuardian/satori",
             }
         }
-        assert get_signature_label(manifest) == "signed (GitGuardian/satori)"
+        assert get_signature_label(manifest) == "signed"
 
     def test_returns_status_without_identity(self) -> None:
         manifest: dict = {"signature": {"status": "missing"}}
@@ -1734,8 +1736,9 @@ class TestGetSignatureLabel:
         )
 
     def test_returns_unknown_when_no_status(self) -> None:
+        # Identity is never appended to the label, even for non-signed states.
         manifest: dict = {"signature": {"identity": "org/repo"}}
-        assert get_signature_label(manifest) == "unknown (org/repo)"
+        assert get_signature_label(manifest) == "unknown"
 
 
 class TestDownloadUrlBundle:
