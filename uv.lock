@@ -941,12 +941,12 @@ requires-dist = [
     { name = "filelock", specifier = ">=3.19.1" },
     { name = "keyring", specifier = ">=24.0.0,<26" },
     { name = "marshmallow", specifier = ">=3.18,<3.27" },
-    { name = "marshmallow-dataclass", specifier = "~=8.5.8" },
+    { name = "marshmallow-dataclass", specifier = "~=8.7.0" },
     { name = "notify-py", specifier = ">=0.3.43" },
     { name = "oauthlib", specifier = "~=3.2.1" },
     { name = "packaging", specifier = ">=22.0" },
     { name = "platformdirs", specifier = "~=4.2" },
-    { name = "pygitguardian", specifier = "~=1.31.0" },
+    { name = "pygitguardian", specifier = "~=1.32.0" },
     { name = "pyjwt", specifier = "~=2.6.0" },
     { name = "python-dotenv", specifier = "~=0.21.0" },
     { name = "pyyaml", specifier = "~=6.0.1" },
@@ -1730,16 +1730,17 @@ wheels = [
 
 [[package]]
 name = "marshmallow-dataclass"
-version = "8.5.14"
+version = "8.7.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "marshmallow" },
+    { name = "typeguard" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
     { name = "typing-inspect" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/20/f2/1af94d8e8432ddd80e30983b3c7fdeb4cf7c9b0790d6d4855c4343dbecde/marshmallow_dataclass-8.5.14.tar.gz", hash = "sha256:233c414dd24a6d512bcdb6fb840076bf7a29b7daaaea40634f155a5933377d2e", size = 19355, upload-time = "2023-04-27T16:58:49.713Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/01/23/a863a5d569f03454d733f884a72415ac3f1e1b1b3215de3a9f4f621a83a6/marshmallow_dataclass-8.7.1.tar.gz", hash = "sha256:4fb80e1bf7b31ce1b192aa87ffadee2cedb3f6f37bb0042f8500b07e6fad59c4", size = 32059, upload-time = "2024-09-12T16:18:51.952Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/31/56/997c3a603386f3736ab778e258f7ce7935219676744e4e9216e9f6932a95/marshmallow_dataclass-8.5.14-py3-none-any.whl", hash = "sha256:73859c8963774b5aad6b23ff3dd8456c8463e7c96bf5076051e1656fd4e101d0", size = 17699, upload-time = "2023-04-27T16:58:47.185Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/f5/6764f3f3203d14a0e6df0fce4838f8195ccc61ec7d48d7ed89acfb8adeed/marshmallow_dataclass-8.7.1-py3-none-any.whl", hash = "sha256:405cbaaad9cea56b3de2f85eff32a9880e3bf849f652e7f6de7395e4b1ddc072", size = 19111, upload-time = "2024-09-12T16:18:50.286Z" },
 ]
 
 [[package]]
@@ -2618,7 +2619,7 @@ wheels = [
 
 [[package]]
 name = "pygitguardian"
-version = "1.31.0"
+version = "1.32.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "marshmallow" },
@@ -2627,9 +2628,9 @@ dependencies = [
     { name = "setuptools" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f5/3f/c55dc98389b11e83fe628865fb580290ff6f3f5bba5504c98fa4dcc57776/pygitguardian-1.31.0.tar.gz", hash = "sha256:ee3892409ff07152f92d88e0db2b99e8075dda5783716f7ef89593b1ead773c1", size = 56967, upload-time = "2026-06-15T12:04:43.872Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/21/58/17a8fb8459871f0a7a758a64f492a282a1251b629789a6f72d80a6831fc4/pygitguardian-1.32.0.tar.gz", hash = "sha256:2bc9880c139dee3692bff369a10d42e99f58e4122358ce0d632b51e250e90252", size = 57374, upload-time = "2026-06-16T13:27:06.488Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/88/d3/d741807b1b7c1df3135ca376dd718836f4e9e4a95ec02f4e060192b31659/pygitguardian-1.31.0-py3-none-any.whl", hash = "sha256:5b88d66f492cdac5cfe0779c75bc386ff97833e359098c2a466bf86eb54ce957", size = 23703, upload-time = "2026-06-15T12:04:41.917Z" },
+    { url = "https://files.pythonhosted.org/packages/56/4a/b26702ad735fa24b0b93bfbb64cbe6a4a761304a767e8b3ce4b890dd8f6d/pygitguardian-1.32.0-py3-none-any.whl", hash = "sha256:7f0549565a4a7ef13be2ced9b2fd787cfe402bdd169c3e40e8057a63e0c06bf6", size = 23910, upload-time = "2026-06-16T13:27:05.556Z" },
 ]
 
 [[package]]
@@ -3678,6 +3679,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/25/b5/377a566dfa8286b2ca27ddbc792ab1645de0b6c65dd5bf03027b3bf8cc8f/tuf-6.0.0.tar.gz", hash = "sha256:9eed0f7888c5fff45dc62164ff243a05d47fb8a3208035eb268974287e0aee8d", size = 271268, upload-time = "2025-03-11T10:48:45.489Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6b/3d/161ab4fec446048707cb13e8ba22220e05a6c4a6587d3631feeb5715037e/tuf-6.0.0-py3-none-any.whl", hash = "sha256:458f663a233d95cc76dde0e1a3d01796516a05ce2781fefafebe037f7729601a", size = 54774, upload-time = "2025-03-11T10:48:44.188Z" },
+]
+
+[[package]]
+name = "typeguard"
+version = "4.5.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "importlib-metadata", marker = "python_full_version < '3.10'" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/67/1c/dfba5c4633cafc4c701f237d2ba63b416805047fd6d96aab4cfc40969f98/typeguard-4.5.2.tar.gz", hash = "sha256:5a16dcac23502039299c97c8941651bc33d7ea8cc4b2f7d6bbb1b528f6eea423", size = 80240, upload-time = "2026-05-14T12:59:40.857Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5b/29/74eeb4d3f3ae61ca096b018ad486b3b3c74b17bec09ab4edab721cbefec3/typeguard-4.5.2-py3-none-any.whl", hash = "sha256:fcf9de18bd945cdb4c7b996e12b4c51ce83f92f191314a6d7cf1739586ec98cf", size = 36748, upload-time = "2026-05-14T12:59:39.473Z" },
 ]
 
 [[package]]
