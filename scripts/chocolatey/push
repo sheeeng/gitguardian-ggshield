@@ -28,7 +28,7 @@ choco_log="${ChocolateyInstall:-C:/ProgramData/chocolatey}/logs/chocolatey.log"
 choco_log="${choco_log//\\//}"
 if [ -f "$choco_log" ]; then
     echo "=== chocolatey.log (tail -200) ==="
-    tail -n 200 "$choco_log"
+    tail -n 200 "$choco_log" || true  # never let a log-read hiccup mask the 409 guidance below
 fi
 
 # `choco push` returns 409 when the version already exists in Chocolatey's system,
