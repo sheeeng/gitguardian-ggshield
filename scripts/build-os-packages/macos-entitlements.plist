@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      The machine-scan plugin (satori) matches with PCRE2, whose JIT is ~6-7x
+      faster than its interpreter on regex-heavy files. JIT needs executable
+      (MAP_JIT) memory, which the hardened runtime denies unless the process's
+      MAIN executable carries this entitlement. Without it PCRE2 silently falls
+      back to the interpreter and `ggshield machine scan` is dramatically
+      slower. Attached to the `ggshield` launcher in macos_sign_file().
+    -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+</dict>
+</plist>
