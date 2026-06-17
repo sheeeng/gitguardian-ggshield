@@ -23,6 +23,14 @@ set -e
 echo "$output"
 [ "$status" -eq 0 ] && exit 0
 
+# On failure, dump choco's own log — it can hold the real server error the console masks as a generic 409 (chocolatey/choco#2007).
+choco_log="${ChocolateyInstall:-C:/ProgramData/chocolatey}/logs/chocolatey.log"
+choco_log="${choco_log//\\//}"
+if [ -f "$choco_log" ]; then
+    echo "=== chocolatey.log (tail -200) ==="
+    tail -n 200 "$choco_log"
+fi
+
 # `choco push` returns 409 when the version already exists in Chocolatey's system,
 # including "pending"/"rejected" moderation states that are hidden from the public
 # feed — re-pushing the same version then always fails.
