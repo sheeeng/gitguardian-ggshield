@@ -10,7 +10,7 @@ import pytest
 import vcr
 import yaml
 from click.testing import CliRunner, Result
-from pyfakefs.fake_filesystem import FakeFilesystem
+from pyfakefs.fake_filesystem import FakeFilesystem, set_uid
 from pygitguardian import GGClient
 from pygitguardian.models import ScanResult, SecretIncident
 from requests.utils import DEFAULT_CA_BUNDLE_PATH, extract_zipped_paths
@@ -794,6 +794,10 @@ def make_fake_path_inaccessible(fs: FakeFilesystem, path: Union[str, Path]):
     Make `path` inaccessible inside `fs`. This is useful to test IO permission errors.
     """
 
+    # pyfakefs skips permission checks for the root user, and maps a Windows
+    # admin (what GitHub CI runners are) to uid 0 — so without a non-root uid
+    # the chmod below is ignored on Windows and the file stays accessible.
+    set_uid(1)
     # `force_unix_mode` is required for Windows.
     # See <https://pytest-pyfakefs.readthedocs.io/en/latest/usage.html#set-file-as-inaccessible-under-windows>
     fs.chmod(path, 0o0000, force_unix_mode=True)
