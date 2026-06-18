@@ -82,7 +82,7 @@ function Remove-Standalone {
             Warn 'ggshield installed another way (choco, a hand-run MSI, pipx, uv, pip) is left untouched'
             return
         }
-        if (-not (Confirm-Step "Remove the standalone ggshield at $ZipDir?")) { return }
+        if (-not (Confirm-Step "Remove the standalone ggshield at ${ZipDir}?")) { return }
         Assert-SafeZipDir
         Say "Removing $ZipDir"
         Remove-Item $ZipDir -Recurse -Force
