@@ -96,7 +96,7 @@ The methods below install the CLI manually instead.
 You can install `ggshield` using Homebrew:
 
 ```shell
-$ brew install ggshield
+brew install ggshield
 ```
 
 Upgrading is handled by Homebrew.
@@ -127,7 +127,7 @@ Upgrading is handled by the package manager.
 `ggshield` is available via the [Chocolatey package manager](https://chocolatey.org/packages/ggshield):
 
 ```shell
-$ choco install ggshield
+choco install ggshield
 ```
 
 ### Standalone .zip archive
@@ -151,13 +151,13 @@ If you don't use our packaged versions of `ggshield`, please be aware that we fo
 The recommended way to install `ggshield` from PyPI is to use [pipx](https://pypa.github.io/pipx/), which will install it in an isolated environment:
 
 ```shell
-$ pipx install ggshield
+pipx install ggshield
 ```
 
 To upgrade your installation, run:
 
 ```shell
-$ pipx upgrade ggshield
+pipx upgrade ggshield
 ```
 
 ### Using pip
@@ -165,13 +165,13 @@ $ pipx upgrade ggshield
 You can also install `ggshield` from PyPI using pip, but this is not recommended because the installation is not isolated, so other applications or packages installed this way may affect your `ggshield` installation. This method will also not work if your Python installation is declared as externally managed (for example when using the system Python on operating systems like Debian 12):
 
 ```shell
-$ pip install --user ggshield
+pip install --user ggshield
 ```
 
 To upgrade your installation, run:
 
 ```shell
-$ pip install --user --upgrade ggshield
+pip install --user --upgrade ggshield
 ```
 
 # Initial setup
@@ -221,14 +221,16 @@ For more information, have a look at [the documentation](https://docs.gitguardia
 If no secrets have been found, the exit code will be 0:
 
 ```bash
-$ ggshield secret scan pre-commit
+ggshield secret scan pre-commit
 ```
 
 If a secret is found in your staged code or in your CI, you will have an alert giving you the filename where the secret has been found and a patch giving you the position of the secret in the file:
 
 ```shell
-$ ggshield secret scan pre-commit
+ggshield secret scan pre-commit
+```
 
+```
 2 incidents have been found in file production.rb
 
 11 | config.paperclip_defaults = {
