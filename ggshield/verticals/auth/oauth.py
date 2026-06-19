@@ -447,8 +447,12 @@ class OAuthClient:
         """
         Output the login success message
         """
-        assert self.instance_config.account is not None
-        expire_at = self.instance_config.account.expire_at
+        account = self.instance_config.account
+        if account is None:
+            # Reached only if the flow ended without saving a token; surface a
+            # clean error instead of a bare AssertionError.
+            raise UnexpectedError("Login failed: no token was saved.")
+        expire_at = account.expire_at
 
         if expire_at is not None:
             str_date = get_pretty_date(expire_at)
@@ -533,7 +537,11 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         try:
             self.oauth_client.process_callback(callback_url)
-        except OAuthError as error:
+        except (OAuthError, UnexpectedError) as error:
+            # UnexpectedError is raised e.g. when the token endpoint returns a
+            # non-JSON response. It must be caught here too: an exception that
+            # escapes this handler thread is swallowed by socketserver, leaving
+            # the main thread to mistake the callback for a success.
             self._handle_error(error.message)
         else:
             self._redirect(
