@@ -14,6 +14,12 @@ from ggshield.core.url_utils import api_to_dashboard_url, dashboard_to_api_url, 
             "https://api.gitguardian.com/?foo=bar",
             "https://dashboard.gitguardian.com?foo=bar",
         ],
+        # Self-hosted instance deployed under a gitguardian domain: it is NOT
+        # SaaS, so /exposed is stripped instead of being rejected as a path.
+        [
+            "https://selfhosted.gitguardian.tech/exposed",
+            "https://selfhosted.gitguardian.tech",
+        ],
         ["https://example.com/exposed", "https://example.com"],
         ["https://example.com/exposed/", "https://example.com"],
         [
@@ -42,6 +48,12 @@ def test_api_to_dashboard_url(api_url, dashboard_url):
         [
             "https://dashboard.gitguardian.com/?foo=bar",
             "https://api.gitguardian.com?foo=bar",
+        ],
+        # Self-hosted instance deployed under a gitguardian domain: it is NOT
+        # SaaS, so /exposed is appended instead of swapping the host.
+        [
+            "https://selfhosted.gitguardian.tech",
+            "https://selfhosted.gitguardian.tech/exposed",
         ],
         ["https://example.com/", "https://example.com/exposed"],
         ["https://example.com/", "https://example.com/exposed"],
