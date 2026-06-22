@@ -6,8 +6,11 @@ from typing import Optional, Set
 from unittest.mock import Mock
 
 import pytest
+import requests.exceptions
+from pygitguardian import GGClient
 
 from ggshield.__main__ import cli
+from ggshield.cmd.auth.login import _warn_missing_scopes
 from ggshield.core.config import Config
 from ggshield.core.constants import DEFAULT_INSTANCE_URL
 from ggshield.core.errors import ExitCode, UnexpectedError
@@ -1328,3 +1331,22 @@ class TestAuthLoginOob:
         result = cli_fs_runner.invoke(cli, cmd, color=False)
         assert result.exit_code != 0
         assert "'no-browser' is not one of 'token', 'web', 'oob'" in result.output
+
+
+def test_warn_missing_scopes_swallows_non_json_body(capsys):
+    """
+    GIVEN a just-logged-in client whose api_tokens() hits a non-JSON 2xx body
+    WHEN _warn_missing_scopes() is called (best-effort, post-login)
+    THEN it neither crashes nor prints a misleading "scopes not granted" warning
+    """
+    client_mock = Mock(spec=GGClient)
+    client_mock.base_uri = "https://dashboard.example.com"
+    client_mock.api_tokens.side_effect = requests.exceptions.JSONDecodeError(
+        "Expecting value: line 1 column 1 (char 0)",
+        "<!doctype html><html></html>",
+        0,
+    )
+
+    _warn_missing_scopes(client_mock)  # must not raise
+
+    assert "scopes were not granted" not in capsys.readouterr().err

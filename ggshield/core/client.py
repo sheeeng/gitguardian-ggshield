@@ -1,7 +1,7 @@
 import logging
 import os
 from enum import Enum
-from typing import Optional
+from typing import Optional, Union
 
 import requests
 import urllib3
@@ -167,6 +167,28 @@ def create_session(
     return session
 
 
+def safe_api_tokens(client: GGClient) -> Union[APITokensResponse, Detail]:
+    """Call GGClient.api_tokens() but turn a non-JSON 2xx body into a clean error
+    instead of letting a raw JSONDecodeError escape.
+
+    pygitguardian's api_tokens() calls resp.json() unconditionally when resp.ok;
+    a wrong instance URL can answer a 2xx with the dashboard SPA's HTML, which
+    otherwise crashed callers with an opaque traceback. Mirrors the non-JSON
+    hardening already applied to the auth-login token-claim path.
+    """
+    try:
+        return client.api_tokens()
+    except requests.exceptions.JSONDecodeError as exc:
+        snippet = " ".join((getattr(exc, "doc", "") or "").split())[:100]
+        message = (
+            f"Unexpected non-JSON response from {client.base_uri}. "
+            "Check your instance URL settings."
+        )
+        if snippet:
+            message += f"\nResponse body: {snippet}"
+        raise UnexpectedError(message) from exc
+
+
 def check_client_api_key(client: GGClient, required_scopes: set[TokenScope]) -> None:
     """
     Raises APIKeyCheckError if the API key configured for the client is not usable
@@ -231,7 +253,7 @@ def check_client_api_key(client: GGClient, required_scopes: set[TokenScope]) -> 
     # Check token scopes if required_scopes is not empty
     if required_scopes:
         try:
-            response = client.api_tokens()
+            response = safe_api_tokens(client)
         except requests.exceptions.ConnectionError as e:
             raise ServiceUnavailableError(
                 message="Failed to connect to GitGuardian server. Check your"

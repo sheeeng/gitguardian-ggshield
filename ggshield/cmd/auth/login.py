@@ -8,7 +8,11 @@ from pygitguardian.models import APITokensResponse
 
 from ggshield.cmd.utils.common_options import add_common_options
 from ggshield.cmd.utils.context_obj import ContextObj
-from ggshield.core.client import create_client, create_client_from_config
+from ggshield.core.client import (
+    create_client,
+    create_client_from_config,
+    safe_api_tokens,
+)
 from ggshield.core.config import Config
 from ggshield.core.constants import DEFAULT_INSTANCE_URL
 from ggshield.core.errors import UnexpectedError
@@ -17,7 +21,12 @@ from ggshield.verticals.auth import DEFAULT_SCOPES, OAuthClient
 
 
 def _warn_missing_scopes(client: GGClient) -> None:
-    token_info = client.api_tokens()
+    try:
+        token_info = safe_api_tokens(client)
+    except UnexpectedError:
+        # Best-effort warning: don't fail a successful login if the token-info
+        # fetch hits a non-JSON response.
+        return
     granted = (
         token_info.scopes
         if isinstance(token_info, APITokensResponse) and token_info.scopes
