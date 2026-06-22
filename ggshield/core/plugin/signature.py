@@ -21,16 +21,17 @@ Verification modes (these decide how a result is handled, not how it is computed
 import enum
 import functools
 import logging
+import tempfile
 from dataclasses import dataclass
-from importlib.resources import as_file, files
 from pathlib import Path
 from typing import List, Optional
-from urllib.parse import quote
 
 from sigstore.errors import VerificationError
 from sigstore.models import Bundle, TrustedRoot
 from sigstore.verify import Verifier
 from sigstore.verify.policy import AllOf, GitHubWorkflowRepository, OIDCIssuer
+
+from ggshield.core.plugin._sigstore_trusted_root import TRUSTED_ROOT_JSON
 
 
 logger = logging.getLogger(__name__)
@@ -104,39 +105,31 @@ def get_bundle_path(wheel_path: Path) -> Optional[Path]:
     return None
 
 
-# Hardcode sigstore's production TUF URL rather than importing the private
-# sigstore._internal.tuf.DEFAULT_TUF_URL, so a refactor of that module can't
-# break our import. The value is stable and rarely (if ever) changes.
+# Only used by the freshness test, to find sigstore's own trusted_root.json
+# (under its URL-encoded _store dir) and compare it to our vendored copy.
 _SIGSTORE_PROD_TUF_URL = "https://tuf-repo-cdn.sigstore.dev"
 
 
 @functools.lru_cache(maxsize=1)
 def _bundled_verifier() -> Verifier:
-    """Build a Verifier pinned to the trust root bundled in our sigstore release.
+    """Build a Verifier pinned to a vendored copy of sigstore's production trust root.
 
-    We deliberately do NOT use ``Verifier.production(offline=True)``: in offline
-    mode sigstore reads its shared on-disk TUF target cache and only seeds the
-    embedded root when that cache is *absent* (sigstore ``_internal/tuf.py``
-    ``TrustUpdater``), so a stale root left by earlier sigstore use on the
-    machine would be used instead. We always verify against the root shipped in
-    the pinned sigstore distribution: deterministic, and it never touches the
-    network (the network refresh is what fails on locked-down / proxied networks
-    with "failed to refresh TUF metadata").
+    We verify against ``_sigstore_trusted_root.TRUSTED_ROOT_JSON`` -- a copy of
+    sigstore's production ``trusted_root.json`` committed in ggshield -- instead
+    of sigstore's own ``_store`` resource. sigstore 4.x ships that file under a
+    URL-encoded directory (``https%3A%2F%2Ftuf-repo-cdn.sigstore.dev``) whose
+    ``%`` path characters break Chocolatey's server-side .nupkg extraction;
+    reading our own copy keeps those names out of the bundle. It is
+    also deterministic and never touches the network -- the TUF refresh behind
+    ``Verifier.production`` is what fails on locked-down / proxied networks with
+    "failed to refresh TUF metadata".
 
-    Resolves the same embedded resource sigstore's own ``read_embedded`` reads
-    (``sigstore._store/<quoted-tuf-url>/trusted_root.json``); the dedicated unit
-    test fails loudly if a sigstore upgrade relocates it.
+    ``TrustedRoot.from_file`` is sigstore's only public constructor, so the
+    embedded JSON is materialised to a temp file to load it.
     """
-    # sigstore exposes no public API to load its embedded trust root without the
-    # on-disk TUF cache, so read the bundled root straight from its package data
-    # -- the same sigstore._store resource sigstore's own read_embedded uses.
-    # TestBundledVerifier fails loudly if a sigstore upgrade relocates it.
-    embedded = (
-        files("sigstore._store")
-        / quote(_SIGSTORE_PROD_TUF_URL, safe="")
-        / "trusted_root.json"
-    )
-    with as_file(embedded) as trusted_root_path:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        trusted_root_path = Path(tmp_dir) / "trusted_root.json"
+        trusted_root_path.write_text(TRUSTED_ROOT_JSON)
         trusted_root = TrustedRoot.from_file(str(trusted_root_path))
     return Verifier(trusted_root=trusted_root)
 
