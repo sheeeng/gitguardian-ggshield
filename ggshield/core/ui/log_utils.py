@@ -50,8 +50,12 @@ def set_log_handler(filename: Optional[str] = None) -> None:
 
 
 def _reset_log_handler():
-    """Remove our log handler. Used by reset.reset()."""
+    """Remove our log handler and re-enable logging. Used by reset.reset()."""
     global _log_handler
+    # __main__.main() calls disable_logs() on every run, including from unit
+    # tests; re-enable here so logging isn't left globally disabled for the next
+    # test (which would silence its caplog assertions).
+    logging.disable(logging.NOTSET)
     if _log_handler:
         logging.getLogger().removeHandler(_log_handler)
         _log_handler = None
