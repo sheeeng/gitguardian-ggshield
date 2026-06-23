@@ -31,6 +31,7 @@ DEFAULT_SCOPES = [
     SCAN_SCOPE,
     "honeytokens:check",
     "endpoints:send",
+    "ai-discovery:send",
 ]
 
 # Sentinel `redirect_uri` value used by the out-of-band (browser-less) OAuth
