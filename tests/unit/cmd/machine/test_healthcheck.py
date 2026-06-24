@@ -51,7 +51,11 @@ class TestHealthcheckCommand:
 
     def test_exit_nonzero_when_a_check_fails(self, cli_fs_runner: CliRunner):
         result, _ = self._run(
-            cli_fs_runner, auth_ok=True, ai_ok=False, git_ok=True, plugin_installed=False
+            cli_fs_runner,
+            auth_ok=True,
+            ai_ok=False,
+            git_ok=True,
+            plugin_installed=False,
         )
         assert result.exit_code == 1
         assert "failed" in result.output
@@ -71,7 +75,9 @@ class TestHealthcheckCommand:
 
 class TestCheckAuthAndScopes:
     def _health(self, status_code, detail="ok"):
-        return MagicMock(spec=HealthCheckResponse, status_code=status_code, detail=detail)
+        return MagicMock(
+            spec=HealthCheckResponse, status_code=status_code, detail=detail
+        )
 
     def test_healthy_returns_scopes(self):
         client = MagicMock()
