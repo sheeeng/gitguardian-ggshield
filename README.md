@@ -23,7 +23,7 @@ Only metadata such as call time, request size and scan mode is stored from scans
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 - [Installation](#installation)
-  - [Install script](#install-script)
+  - [Install script (Recommended)](#install-script-recommended)
   - [macOS](#macos)
     - [Homebrew](#homebrew)
     - [Standalone .pkg package](#standalone-pkg-package)
@@ -31,6 +31,7 @@ Only metadata such as call time, request size and scan mode is stored from scans
     - [Deb and RPM packages](#deb-and-rpm-packages)
   - [Windows](#windows)
     - [Chocolatey](#chocolatey)
+    - [MSI installer](#msi-installer)
     - [Standalone .zip archive](#standalone-zip-archive)
   - [All operating systems](#all-operating-systems)
     - [Using pipx](#using-pipx)
@@ -57,11 +58,9 @@ ggshield" section of the "Getting started" page of ggshield public
 documentation.
 -->
 
-## Install script
+## Install script (Recommended)
 
-The quickest way to install `ggshield` is the install script. It detects your
-OS and architecture, installs the standalone build (no Python required), and
-can optionally authenticate and install plugins.
+The quickest way to install `ggshield`.
 
 Linux / macOS:
 
@@ -82,8 +81,11 @@ Or, if you prefer `curl` (bundled with Windows 10+):
 curl.exe -sSL https://raw.githubusercontent.com/GitGuardian/ggshield/main/scripts/install/install.ps1 | powershell -NoProfile -ExecutionPolicy Bypass -Command -
 ```
 
-The script accepts options such as `--instance` (authenticate against a
-specific instance, e.g. the EU workspace) and `--plugin` (install a plugin).
+The script accepts options such as `--instance` and `--plugin` (install a
+plugin). For the EU workspace or a self-hosted instance, set the
+`GITGUARDIAN_INSTANCE` environment variable (or pass `--instance <URL>`)
+before running.
+
 See [`scripts/install/README.md`](scripts/install/README.md) for the full list
 of options, the other install methods, and how to uninstall.
 
@@ -128,6 +130,14 @@ Upgrading is handled by the package manager.
 
 ```shell
 choco install ggshield
+```
+
+### MSI installer
+
+Download the MSI installer from the [`ggshield` release page](https://github.com/GitGuardian/ggshield/releases) and install it:
+
+```powershell
+msiexec /i ggshield-VERSION-x86_64-pc-windows-msvc.msi
 ```
 
 ### Standalone .zip archive

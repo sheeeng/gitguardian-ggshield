@@ -1,0 +1,17 @@
+# Tuned for ggshield's 15-job CI matrix (3 OS × 5 Python), each uploading coverage.xml.
+codecov:
+  notify:
+    after_n_builds: 15 # wait for every matrix upload before posting, else partial uploads read as coverage drops
+    wait_for_ci: true
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        informational: true # not a required gate: report coverage, never red on cross-matrix merge variance
+    patch:
+      default:
+        target: 80% # new code must be tested; mirrors the per-job `coverage report --fail-under=80`
+comment:
+  require_changes: true # only comment when coverage actually moves
