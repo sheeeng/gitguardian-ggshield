@@ -47,6 +47,11 @@ windows_build_chocolatey_package() {
     cp "$ROOT_DIR/LICENSE" choco-package/tools/LICENSE.txt
     sed -i "s/__VERSION__/$VERSION/" choco-package/ggshield.nuspec
 
+    # sigstore 4.x's _store dirs are named with %-encoded URLs (https%3A%2F%2F...)
+    # that break Chocolatey's server-side .nupkg extraction; ggshield uses its own
+    # vendored trust root, so drop them.
+    rm -rf choco-package/tools/_internal/sigstore/_store/https%3A*
+
     choco pack choco-package/* --version $VERSION --outdir $PACKAGES_DIR
 
     info "Chocolatey package created in $PACKAGES_DIR/ggshield.$VERSION.nupkg"
