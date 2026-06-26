@@ -247,7 +247,7 @@ def ai_hook_posture() -> List[AgentHookStatus]:
     """Read-only AI-hook status: for each detected assistant, is the hook installed?
 
     Only assistants present on this machine are reported; it never writes anything.
-    Used by ``ggshield machine healthcheck``.
+    Used by ``ggshield machine doctor``.
     """
     statuses = []
     for agent in AGENTS.values():

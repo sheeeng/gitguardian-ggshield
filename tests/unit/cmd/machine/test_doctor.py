@@ -4,7 +4,7 @@ from click.testing import CliRunner
 from pygitguardian.models import APITokensResponse, HealthCheckResponse
 
 from ggshield.__main__ import cli
-from ggshield.cmd.machine.healthcheck import (
+from ggshield.cmd.machine.doctor import (
     Check,
     _check_ai_hooks,
     _check_auth_and_scopes,
@@ -17,14 +17,14 @@ from ggshield.verticals.ai.installation import AgentHookStatus
 from tests.unit.conftest import assert_invoke_ok
 
 
-BASE = "ggshield.cmd.machine.healthcheck"
+BASE = "ggshield.cmd.machine.doctor"
 
 
-class TestHealthcheckCommand:
-    def test_healthcheck_appears_in_machine_help(self, cli_fs_runner: CliRunner):
+class TestDoctorCommand:
+    def test_doctor_appears_in_machine_help(self, cli_fs_runner: CliRunner):
         result = cli_fs_runner.invoke(cli, ["machine", "--help"])
         assert_invoke_ok(result)
-        assert "healthcheck" in result.output
+        assert "doctor" in result.output
 
     def _run(self, cli_fs_runner, *, auth_ok, ai_ok, git_ok, plugin_installed):
         auth = Check("Authentication", auth_ok)
@@ -39,7 +39,7 @@ class TestHealthcheckCommand:
         ), patch(
             f"{BASE}._check_plugin_native", return_value=Check("Plugin", True)
         ) as m_plugin:
-            result = cli_fs_runner.invoke(cli, ["machine", "healthcheck"])
+            result = cli_fs_runner.invoke(cli, ["machine", "doctor"])
         return result, m_plugin
 
     def test_exit_zero_when_all_pass(self, cli_fs_runner: CliRunner):
