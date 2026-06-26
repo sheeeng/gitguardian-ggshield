@@ -45,10 +45,10 @@ class Check:
     fix: str = ""
 
 
-@click.command(name="healthcheck")
+@click.command(name="doctor")
 @add_common_options()
 @click.pass_context
-def healthcheck_cmd(ctx: click.Context, **kwargs: Any) -> int:
+def doctor_cmd(ctx: click.Context, **kwargs: Any) -> int:
     """
     Check that this machine's ggshield protections are correctly set up.
 
